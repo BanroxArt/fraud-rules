@@ -28,7 +28,6 @@ WITH base AS (
 SELECT
   b.*,
   CASE
-    WHEN b.counterparty_id IS NULL AND b.direction = 'out' AND b.channel IN ('cash', 'atm') THEN 1
     WHEN b.counterparty_id IS NULL THEN NULL
     WHEN COUNT(*) OVER (
       PARTITION BY b.account_id, b.counterparty_id
