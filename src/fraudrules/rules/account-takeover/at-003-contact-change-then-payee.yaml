@@ -1,0 +1,51 @@
+id: AT-003
+name: contact-change-then-payee
+title: Email, phone or address change followed by a payee change
+category: account-takeover
+severity: high
+status: stable
+summary: >-
+  Flags a payee added or changed within 48 hours after a change to the
+  customer's email, phone or mailing address.
+rationale: |
+  Changing contact details is how a takeover silences the real customer: the
+  one-time codes, the payment alerts and the paper statements go to the
+  attacker. Following it with a payee change shows intent to move money.
+  FFIEC treats changes to email, physical address and contact information as
+  account maintenance that warrants enhanced authentication, and FinCEN's
+  elder exploitation advisory lists sudden and unusual changes in contact
+  information as a red flag.
+sources:
+  - publisher: FFIEC
+    title: Authentication and Access to Financial Institution Services and Systems (2021)
+    url: https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+    note: Account maintenance controls for changes to physical or email address and contact information.
+  - publisher: FinCEN
+    title: Account Takeover Activity (FIN-2011-A016)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+  - publisher: FinCEN
+    title: Advisory on Elder Financial Exploitation (FIN-2022-A002)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2022-a002
+false_positives:
+  - Customers who move house and set up a new landlord or utility payee the
+    same week. The address-change variant is noisier than email and phone;
+    split it into its own rule if volume is high.
+tuning:
+  - param: within
+    effect: Time from the contact change to the payee change.
+params:
+  within: 48h
+sequence:
+  key: [customer_id]
+  within: $within
+  steps:
+    - table: events
+      where:
+        all:
+          - {field: event_type, in: [email_change, phone_change, address_change]}
+          - {field: outcome, eq: success}
+    - table: events
+      where:
+        all:
+          - {field: event_type, in: [payee_added, payee_changed]}
+          - {field: outcome, eq: success}

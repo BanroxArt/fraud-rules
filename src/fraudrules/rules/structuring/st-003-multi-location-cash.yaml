@@ -1,0 +1,59 @@
+id: ST-003
+name: multi-location-cash
+title: Cash deposits spread across several branches or ATMs in one day
+category: structuring
+severity: medium
+status: stable
+summary: >-
+  Flags a cash deposit when the customer's cash deposits in the trailing 24
+  hours were made at three or more different locations and total at least
+  $8,000.
+rationale: |
+  Spreading deposits across branches and deposit-taking ATMs is a way to avoid
+  any one teller seeing the whole day. FFIEC lists deposits structured through
+  multiple branches of the same bank, and a customer using ATMs for several
+  deposits below a threshold. The total floor sits below the CTR threshold on
+  purpose: the point is the dispersion, and a structurer who has learned about
+  aggregation keeps the day's total under $10,000 too.
+sources:
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Deposits structured through multiple branches; several ATM deposits below a threshold.
+  - publisher: eCFR, 31 CFR 1010.313
+    title: Aggregation
+    url: https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1010/subpart-C/section-1010.313
+  - publisher: eCFR, 31 CFR 1010.314
+    title: Structured transactions
+    url: https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1010/subpart-C/section-1010.314
+false_positives:
+  - Route businesses (vending, delivery) depositing at whichever branch is on
+    the route.
+  - Couriers depositing for several store locations under one customer id.
+tuning:
+  - param: window
+    effect: Aggregation window.
+  - param: min_locations
+    effect: Distinct deposit locations needed.
+  - param: min_total_cents
+    effect: Smallest total across the locations.
+params:
+  window: 24h
+  min_locations: 3
+  min_total_cents: 800000
+table: transactions
+aggregate:
+  key: [customer_id]
+  window: $window
+  anchor:
+    all:
+      - {field: channel, in: [cash, atm]}
+      - {field: direction, eq: in}
+      - {field: txn_type, eq: deposit}
+  measures:
+    locations: {fn: count_distinct, field: location_id}
+    total: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: locations, gte: $min_locations}
+      - {left: total, gte: $min_total_cents}

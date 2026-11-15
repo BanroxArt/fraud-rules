@@ -1,0 +1,66 @@
+id: FP-001
+name: sleeper-line-maxout
+title: Seasoned card account draws most of its credit line within a week
+category: first-party
+severity: high
+status: stable
+summary: >-
+  Flags a purchase or cash advance on a card account at least 180 days old
+  when purchases and cash advances over the trailing 7 days reach 90% of the
+  credit limit.
+rationale: |
+  Bust-out fraud is patient. The account is opened, used lightly and paid on
+  time until the limit grows, then the line is drawn down in days and never
+  repaid. The tell is the change of pace: an account that has been open for
+  months suddenly spends most of its limit inside a week, typically on goods
+  that resell easily and on cash advances. The anchor-relative comparison
+  (spend against this account's own limit, not a fixed dollar amount) keeps the
+  rule meaningful across a portfolio with limits from $500 to $50,000. The
+  account-age floor keeps it off new accounts, where front-loaded spending is
+  covered by the mule and synthetic identity rules instead.
+sources:
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/
+    note: Describes the build-up of credit followed by a bust-out as the usual monetization of a synthetic identity.
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: An account with little activity that suddenly shows large activity.
+false_positives:
+  - Planned large purchases (furniture, travel, medical bills) by customers
+    with low limits. Pair with a payment-history feature before acting.
+  - Balance transfers booked as purchases by some processors. Exclude them in
+    the view.
+tuning:
+  - param: window
+    effect: Spending window.
+  - param: utilization_pct
+    effect: Share of the credit limit, in percent, that the window's spend must reach.
+  - param: min_account_age
+    effect: Accounts younger than this are left to other rules.
+params:
+  window: 7d
+  utilization_pct: 90
+  min_account_age: 180d
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: account_type, eq: card}
+      - {field: direction, eq: out}
+      - {field: txn_type, in: [purchase, cash_advance]}
+      - {field: ts, gte: {field: account_opened_ts, plus: $min_account_age}}
+      - {field: credit_limit_cents, gt: 0}
+  members:
+    all:
+      - {field: account_type, eq: card}
+      - {field: direction, eq: out}
+      - {field: txn_type, in: [purchase, cash_advance]}
+  measures:
+    spend: {fn: sum, field: amount_cents}
+  having:
+    left: {measure: spend, times: 100}
+    gte: {anchor: credit_limit_cents, times: $utilization_pct}

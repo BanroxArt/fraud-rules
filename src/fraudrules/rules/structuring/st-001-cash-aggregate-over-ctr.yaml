@@ -1,0 +1,68 @@
+id: ST-001
+name: cash-aggregate-over-ctr
+title: Cash deposits each at or under $10,000 that together exceed it in a day
+category: structuring
+severity: high
+status: stable
+summary: >-
+  Flags a cash deposit of $10,000 or less when the same customer's cash
+  deposits of $10,000 or less in the trailing 24 hours number at least two and
+  total more than $10,000.
+rationale: |
+  A bank must file a currency transaction report for cash transactions over
+  $10,000 (31 CFR 1010.311), and must treat multiple cash transactions by or
+  for the same person as one when it knows of them and they total more than
+  $10,000 in one business day (31 CFR 1010.313). Breaking deposits up to stay
+  under the threshold is structuring, which 31 CFR 1010.314 and 31 U.S.C. 5324
+  prohibit whether or not the underlying money is clean. This rule finds the
+  aggregation case: several deposits, each under the line, that cross it
+  together. It keys on the customer, not the account, because 1010.313
+  aggregates by person. The 24-hour rolling window is stricter than a
+  business day; set the window to 1d and run per business day if you want the
+  regulatory aggregation unit exactly.
+sources:
+  - publisher: eCFR, 31 CFR 1010.311
+    title: Filing obligations for reports of transactions in currency
+    url: https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1010/subpart-C/section-1010.311
+  - publisher: eCFR, 31 CFR 1010.313
+    title: Aggregation
+    url: https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1010/subpart-C/section-1010.313
+  - publisher: eCFR, 31 CFR 1010.314
+    title: Structured transactions
+    url: https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1010/subpart-C/section-1010.314
+  - publisher: U.S. Code, via GovInfo
+    title: 31 U.S.C. 5324, Structuring transactions to evade reporting requirement prohibited
+    url: https://www.govinfo.gov/link/uscode/31/5324
+false_positives:
+  - Cash-intensive businesses with several deposits a day. They should be
+    getting a CTR anyway; the alert is useful only if no CTR was filed.
+  - Deposits by different people into a shared account where the view
+    attributes all of them to the account owner.
+tuning:
+  - param: window
+    effect: Aggregation window.
+  - param: ctr_threshold_cents
+    effect: The reporting threshold. Deposits above it are reported on their own and are excluded.
+  - param: min_deposits
+    effect: Deposits needed in the window.
+params:
+  window: 24h
+  ctr_threshold_cents: 1000000
+  min_deposits: 2
+table: transactions
+aggregate:
+  key: [customer_id]
+  window: $window
+  anchor:
+    all:
+      - {field: channel, in: [cash, atm]}
+      - {field: direction, eq: in}
+      - {field: txn_type, eq: deposit}
+      - {field: amount_cents, lte: $ctr_threshold_cents}
+  measures:
+    deposits: {fn: count}
+    total: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: deposits, gte: $min_deposits}
+      - {left: total, gt: $ctr_threshold_cents}

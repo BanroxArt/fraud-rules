@@ -1,0 +1,50 @@
+id: AT-005
+name: new-geo-device-then-mfa-change
+title: Login from a new device in a new country, then an MFA change
+category: account-takeover
+severity: high
+status: stable
+summary: >-
+  Flags an MFA enrollment change within one hour after a successful login from
+  a device and a country never seen on the customer.
+rationale: |
+  After getting in, an attacker enrolls a factor they control so the takeover
+  survives a password reset. Doing that within the hour after the first login
+  from a new device in a country the customer has never logged in from is a
+  strong combination. FFIEC's guidance names deviations from a customer's
+  usual geographic location as something controls should identify, and
+  changes to enrolled devices as account maintenance needing enhanced
+  authentication.
+sources:
+  - publisher: FFIEC
+    title: Authentication and Access to Financial Institution Services and Systems (2021)
+    url: https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+    note: Identify deviations from usual geographic location; enhanced authentication for changes to enrolled devices.
+  - publisher: FinCEN
+    title: Account Takeover Activity (FIN-2011-A016)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+false_positives:
+  - Customers travelling abroad with a new phone. Rare in the same hour as an
+    MFA change, but it happens when the old phone is lost.
+  - Consumer VPNs exiting in another country.
+tuning:
+  - param: within
+    effect: Time from the login to the MFA change.
+params:
+  within: 1h
+sequence:
+  key: [customer_id]
+  within: $within
+  steps:
+    - table: events
+      where:
+        all:
+          - {field: event_type, eq: login}
+          - {field: outcome, eq: success}
+          - {field: device_new, eq: 1}
+          - {field: geo_new, eq: 1}
+    - table: events
+      where:
+        all:
+          - {field: event_type, eq: mfa_change}
+          - {field: outcome, eq: success}

@@ -1,0 +1,60 @@
+id: PF-001
+name: payee-change-then-payment
+title: Payment to a payee whose bank details changed in the last three days
+category: payee-fraud
+severity: high
+status: stable
+summary: >-
+  Flags an outbound wire, ACH or RTP payment of at least $5,000 to a payee
+  whose details were added or changed in digital banking in the previous 72
+  hours.
+rationale: |
+  Business email compromise and payee impersonation do not need access to the
+  victim's bank account. The fraudster convinces the customer, by email from a
+  spoofed or compromised vendor address, to update the vendor's bank details,
+  and the next scheduled payment goes to the fraudster. FinCEN's BEC advisory
+  describes the fraudulent payment instructions and vendor impersonation that
+  drive this; Nacha's 2026 rules define "False Pretenses" to cover exactly
+  these impersonations and require ODFIs to monitor for them. The join on the
+  payee (the payee that changed is the payee being paid) is what separates
+  this from routine payee maintenance.
+sources:
+  - publisher: FinCEN
+    title: Updated Advisory on Email Compromise Fraud Schemes Targeting Vulnerable Business Processes (FIN-2019-A005)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2019-a005
+  - publisher: FinCEN
+    title: Advisory to Financial Institutions on E-mail Compromise Fraud Schemes (FIN-2016-A003)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2016-a003
+  - publisher: Nacha
+    title: Risk Management Topics, Fraud Monitoring Phase 1 (effective March 20, 2026)
+    url: https://www.nacha.org/rules/risk-management-topics-fraud-monitoring-phase-1
+    note: Defines False Pretenses, covering business email compromise and vendor impersonation.
+false_positives:
+  - Genuine vendor bank changes after a merger or a bank switch. These are
+    exactly the cases a call-back to a known number resolves; the rule's job
+    is to make sure the call happens.
+tuning:
+  - param: within
+    effect: Time from the payee change to the payment.
+  - param: min_amount_cents
+    effect: Smallest payment that fires.
+params:
+  within: 72h
+  min_amount_cents: 500000
+sequence:
+  key: [customer_id]
+  within: $within
+  steps:
+    - table: events
+      where:
+        all:
+          - {field: event_type, in: [payee_added, payee_changed]}
+          - {field: outcome, eq: success}
+    - table: transactions
+      where:
+        all:
+          - {field: direction, eq: out}
+          - {field: channel, in: [wire, ach, rtp]}
+          - {field: amount_cents, gte: $min_amount_cents}
+  match:
+    - {step: 0, field: payee_id, anchor_field: counterparty_id}

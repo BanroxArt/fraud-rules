@@ -1,0 +1,57 @@
+id: MU-003
+name: fan-out-new-payees
+title: Funds sent to several first-time payees within two days
+category: money-mule
+severity: medium
+status: stable
+summary: >-
+  Flags an outbound payment to a first-time counterparty when the account has
+  paid at least four distinct first-time counterparties a total of at least
+  $5,000 in the trailing 48 hours.
+rationale: |
+  The second half of a mule chain, and the cash-out of an account takeover,
+  both spread funds across new recipients quickly to make recovery harder.
+  Paying several counterparties the account has never paid before, in two
+  days, is unusual for consumers and most small businesses outside payroll.
+  counterparty_new must be point-in-time: whether this account had ever paid
+  this counterparty before this payment.
+sources:
+  - publisher: FinCEN
+    title: Account Takeover Activity (FIN-2011-A016)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+    note: Lists sudden wire transfers among account takeover irregularities.
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Unusually large number and variety of beneficiaries.
+false_positives:
+  - Small business payroll or contractor runs from a new payroll provider.
+    Exclude business accounts or known payroll originators.
+  - A customer settling the costs of an event, a move or an estate.
+tuning:
+  - param: window
+    effect: Counting window.
+  - param: min_payees
+    effect: Distinct first-time payees needed.
+  - param: min_total_cents
+    effect: Total paid to first-time payees in the window.
+params:
+  window: 48h
+  min_payees: 4
+  min_total_cents: 500000
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: counterparty_new, eq: 1}
+      - {field: channel, in: [ach, wire, rtp, p2p]}
+  measures:
+    payees: {fn: count_distinct, field: counterparty_id}
+    total: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: payees, gte: $min_payees}
+      - {left: total, gte: $min_total_cents}

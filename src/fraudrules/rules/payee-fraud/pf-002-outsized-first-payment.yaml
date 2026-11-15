@@ -1,0 +1,66 @@
+id: PF-002
+name: outsized-first-payment
+title: First payment to a new payee far larger than any recent known payment
+category: payee-fraud
+severity: medium
+status: test
+summary: >-
+  Flags a wire, ACH or RTP payment to a first-time counterparty that is at
+  least three times the largest payment the account made to known
+  counterparties in the previous 90 days, given at least three such payments.
+rationale: |
+  Impersonation scams (the fake vendor, the fake investment, the "safe
+  account" set up by someone posing as the bank) end in a payment that is out
+  of scale with the account's history and goes somewhere new. Comparing the
+  payment with the account's own largest recent payment to known payees is a
+  simple per-account baseline that needs no model. Requiring some history
+  keeps new accounts out; they belong to MU-001 and MU-003.
+sources:
+  - publisher: FinCEN
+    title: Updated Advisory on Email Compromise Fraud Schemes Targeting Vulnerable Business Processes (FIN-2019-A005)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2019-a005
+  - publisher: FinCEN
+    title: Advisory on Elder Financial Exploitation (FIN-2022-A002)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2022-a002
+    note: Uncharacteristic attempts to wire large sums of money.
+  - publisher: Nacha
+    title: Risk Management Topics, Fraud Monitoring Phase 1 (effective March 20, 2026)
+    url: https://www.nacha.org/rules/risk-management-topics-fraud-monitoring-phase-1
+    note: Notes that monitoring can establish baselines of typical activity.
+false_positives:
+  - House purchases, tuition and tax payments are large, rare and go to a new
+    payee. A down payment to a title company is the classic case, and also
+    the classic BEC target, so a call-back is the right response either way.
+tuning:
+  - param: lookback
+    effect: History window for the baseline.
+  - param: multiple_pct
+    effect: Payment size relative to the largest known payment, in percent (300 = three times).
+  - param: min_history
+    effect: Payments to known counterparties needed for a baseline.
+params:
+  lookback: 90d
+  multiple_pct: 300
+  min_history: 3
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $lookback
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: channel, in: [wire, ach, rtp]}
+      - {field: counterparty_new, eq: 1}
+  members:
+    all:
+      - {field: direction, eq: out}
+      - {field: channel, in: [wire, ach, rtp, p2p, check]}
+      - {field: counterparty_new, eq: 0}
+  measures:
+    known: {fn: count}
+    largest: {fn: max, field: amount_cents}
+  having:
+    all:
+      - {left: known, gte: $min_history}
+      - left: {anchor: amount_cents, times: 100}
+        gte: {measure: largest, times: $multiple_pct}

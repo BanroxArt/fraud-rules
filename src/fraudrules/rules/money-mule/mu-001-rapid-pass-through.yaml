@@ -1,0 +1,72 @@
+id: MU-001
+name: rapid-pass-through
+title: New account sends out most of what it received in the last three days
+category: money-mule
+severity: high
+status: stable
+summary: >-
+  Flags an outbound wire, ACH, RTP or P2P payment from an account under 90
+  days old when it moves at least 80% of the credits received in the previous
+  72 hours, and those credits total at least $2,000.
+rationale: |
+  A mule account exists to receive proceeds and pass them on before the
+  victim's bank recalls them. The balance spends almost no time in the
+  account, and the outbound leg is close in size to the inbound leg minus the
+  mule's cut. FFIEC lists incoming transfers that are wired out almost
+  immediately, and large deposits and withdrawals shortly after opening, among
+  its red flags; FinCEN's mule advisory describes recruits told to open a new
+  account and move funds through it. The rule compares the outbound payment
+  with the credits in the window before it, so a payroll deposit followed by
+  rent two weeks later does not fire.
+sources:
+  - publisher: FinCEN
+    title: Advisory on Imposter Scams and Money Mule Schemes Related to COVID-19 (FIN-2020-A003)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2020-a003
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Incoming transfers wired out almost immediately; large deposits and withdrawals shortly after opening.
+  - publisher: Nacha
+    title: Risk Management Topics, Fraud Monitoring Phase 1 (effective March 20, 2026)
+    url: https://www.nacha.org/rules/risk-management-topics-fraud-monitoring-phase-1
+    note: RDFI credit monitoring may consider account age and transactional velocity.
+false_positives:
+  - Customers moving their salary to a primary account at another bank right
+    after payday. These have a single, regular originator; add a
+    counterparty-count condition if they dominate.
+  - Escrow and settlement accounts that are designed to pass funds through.
+    Exclude by account_type in the view.
+tuning:
+  - param: window
+    effect: How far back credits count.
+  - param: max_account_age
+    effect: Only accounts younger than this are checked.
+  - param: min_inflow_cents
+    effect: Smallest window inflow that matters.
+  - param: pass_through_pct
+    effect: Outbound amount as a percentage of the window's inflow.
+params:
+  window: 72h
+  max_account_age: 90d
+  min_inflow_cents: 200000
+  pass_through_pct: 80
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: channel, in: [wire, ach, rtp, p2p]}
+      - {field: ts, lt: {field: account_opened_ts, plus: $max_account_age}}
+  members:
+    all:
+      - {field: direction, eq: in}
+      - {field: txn_type, ne: return}
+  measures:
+    inflow: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: inflow, gte: $min_inflow_cents}
+      - left: {anchor: amount_cents, times: 100}
+        gte: {measure: inflow, times: $pass_through_pct}

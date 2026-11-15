@@ -1,0 +1,59 @@
+id: SI-001
+name: ssn-multiple-identities
+title: One SSN presented with more than one name or date of birth
+category: synthetic-identity
+severity: high
+status: stable
+summary: >-
+  Flags an application whose SSN token has, up to and including this
+  application, been seen with a different name or a different date of birth.
+rationale: |
+  A synthetic identity pairs a real or fabricated SSN with a name and date of
+  birth that do not belong to it. The same SSN then tends to come back with
+  small variations as the fraudster tries different combinations against
+  different lenders, or as several synthetic personas are built on one number.
+  Inside one institution the cheapest signal is the institution's own history:
+  the SSN has already been seen with another name or another date of birth.
+  The count is point-in-time (everything up to the application timestamp), so
+  the rule can run on a historical table without using information the
+  underwriter did not have.
+sources:
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit, Identifying Synthetics
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/identifying-synthetics/
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: >-
+      Lists a customer using different taxpayer identification numbers with
+      variations of the name; this rule checks the mirror image, one number
+      with several names.
+false_positives:
+  - Name changes after marriage or divorce, and transliteration differences, if
+    name_token is computed before normalization. Normalize case, whitespace,
+    punctuation and suffixes before hashing.
+  - Data-entry errors in the date of birth that were later corrected on a new
+    application.
+  - Joint applications where the co-applicant's SSN was keyed into the primary
+    applicant's field.
+tuning:
+  - param: min_names
+    effect: Distinct names needed to fire. Raise to 3 if name normalization is weak.
+  - param: min_dobs
+    effect: Distinct dates of birth needed to fire.
+params:
+  min_names: 2
+  min_dobs: 2
+table: applications
+aggregate:
+  key: [ssn_token]
+  measures:
+    names: {fn: count_distinct, field: name_token}
+    dobs: {fn: count_distinct, field: dob_day}
+  having:
+    any:
+      - {left: names, gte: $min_names}
+      - {left: dobs, gte: $min_dobs}

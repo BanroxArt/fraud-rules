@@ -1,0 +1,55 @@
+title: Email, phone or address change followed by a payee change
+id: 6c541032-891f-54be-98f7-00f25b022574
+status: stable
+description: Flags a payee added or changed within 48 hours after a change to the customer's email, phone
+  or mailing address.
+references:
+- https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+- https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+- https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2022-a002
+author: fraud-rules
+date: '2026-11-15'
+tags:
+- fraudrules.at-003
+- fraudrules.account-takeover
+falsepositives:
+- Customers who move house and set up a new landlord or utility payee the same week. The address-change
+  variant is noisier than email and phone; split it into its own rule if volume is high.
+level: high
+correlation:
+  type: temporal_ordered
+  rules:
+  - contact_change_then_payee_step1
+  - contact_change_then_payee_step2
+  group-by:
+  - customer_id
+  timespan: 2d
+---
+title: 'Email, phone or address change followed by a payee change: step 1'
+id: f2eab093-0931-511b-a58e-2f06a8b343e5
+name: contact_change_then_payee_step1
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type:
+    - email_change
+    - phone_change
+    - address_change
+    outcome: success
+  condition: selection_1
+---
+title: 'Email, phone or address change followed by a payee change: step 2'
+id: bfc98ffe-7896-5b44-897a-2c75255e47c6
+name: contact_change_then_payee_step2
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type:
+    - payee_added
+    - payee_changed
+    outcome: success
+  condition: selection_1

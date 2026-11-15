@@ -1,0 +1,48 @@
+id: SI-005
+name: thin-file-piggyback
+title: Adult applicant with a thin credit file built on authorized-user tradelines
+category: synthetic-identity
+severity: low
+status: experimental
+summary: >-
+  Flags an application from an adult past the usual age for a first credit
+  file whose file is under two years old and carries three or more
+  authorized-user tradelines.
+rationale: |
+  A new synthetic identity has no history, so the first step is to manufacture
+  one. Being added as an authorized user to aged, well-paid accounts ("tradeline
+  piggybacking") gives the file age and a score quickly. A twenty-year-old with
+  a parent's card as an authorized user is ordinary; a forty-year-old whose
+  entire file is eighteen months old and consists mostly of authorized-user
+  lines is not. This is a weak signal on its own and is meant to be combined
+  with the linkage rules (SI-001 to SI-004) in scoring, which is why it ships
+  as experimental and low severity.
+sources:
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit, Identifying Synthetics
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/identifying-synthetics/
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/
+false_positives:
+  - Recent immigrants who were added to a relative's accounts while building a
+    US file.
+  - People returning to credit after a long gap whose old tradelines have aged
+    off.
+tuning:
+  - param: min_age
+    effect: Applicant age from which a thin file is unusual.
+  - param: max_file_months
+    effect: File age below which the file counts as thin.
+  - param: min_au_lines
+    effect: Authorized-user tradelines needed to fire.
+params:
+  min_age: 30
+  max_file_months: 24
+  min_au_lines: 3
+table: applications
+filter:
+  all:
+    - {field: applicant_age, gte: $min_age}
+    - {field: credit_file_age_months, lt: $max_file_months}
+    - {field: au_tradelines, gte: $min_au_lines}

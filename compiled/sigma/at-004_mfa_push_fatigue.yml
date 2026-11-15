@@ -1,0 +1,39 @@
+title: Burst of denied or ignored MFA prompts for one customer
+id: 177dad52-0c14-5e25-9abb-037c7c5ff20f
+status: stable
+description: Flags an MFA challenge that was denied or timed out when the customer has had at least five
+  such challenges in the trailing 10 minutes.
+references:
+- https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+author: fraud-rules
+date: '2026-11-15'
+tags:
+- fraudrules.at-004
+- fraudrules.account-takeover
+falsepositives:
+- App bugs that send duplicate prompts. These show up as many customers at once; investigate at the population
+  level.
+level: medium
+correlation:
+  type: event_count
+  rules:
+  - mfa_push_fatigue_event
+  group-by:
+  - customer_id
+  timespan: 10m
+  condition:
+    gte: 5
+---
+title: 'Burst of denied or ignored MFA prompts for one customer: matching event'
+id: 1329f3b8-caf6-52de-8489-e6c4acd6fd6c
+name: mfa_push_fatigue_event
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type: mfa_challenge
+    outcome:
+    - denied
+    - failure
+  condition: selection_1

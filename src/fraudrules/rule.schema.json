@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/rule.schema.json",
+  "title": "fraud-rules rule",
+  "description": "Structure of one rule file. Field names, types and parameter references are checked separately by fraudrules.loader, which knows the table schemas.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "title", "category", "severity", "status", "summary", "rationale", "sources", "false_positives", "tuning"],
+  "oneOf": [
+    {"required": ["filter", "table"], "not": {"anyOf": [{"required": ["aggregate"]}, {"required": ["sequence"]}]}},
+    {"required": ["aggregate", "table"], "not": {"anyOf": [{"required": ["filter"]}, {"required": ["sequence"]}]}},
+    {"required": ["sequence"], "not": {"anyOf": [{"required": ["filter"]}, {"required": ["aggregate"]}, {"required": ["table"]}]}}
+  ],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[A-Z]{2}-[0-9]{3}$"},
+    "name": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 64},
+    "title": {"type": "string", "minLength": 10, "maxLength": 120},
+    "category": {"enum": ["synthetic-identity", "first-party", "money-mule", "check-kiting", "structuring", "account-takeover", "payee-fraud", "elder-exploitation"]},
+    "severity": {"enum": ["low", "medium", "high"]},
+    "status": {"enum": ["stable", "test", "experimental"]},
+    "summary": {"type": "string", "minLength": 20},
+    "rationale": {"type": "string", "minLength": 80},
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["publisher", "title", "url"],
+        "properties": {
+          "publisher": {"type": "string"},
+          "title": {"type": "string"},
+          "url": {"type": "string", "pattern": "^https://"},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "false_positives": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "tuning": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["param", "effect"],
+        "properties": {"param": {"type": "string"}, "effect": {"type": "string"}}
+      }
+    },
+    "params": {"type": "object", "additionalProperties": {"type": ["integer", "string"]}},
+    "table": {"enum": ["applications", "transactions", "events"]},
+    "filter": {"$ref": "#/$defs/pred"},
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "measures", "having"],
+      "properties": {
+        "key": {"$ref": "#/$defs/key"},
+        "window": {"$ref": "#/$defs/duration"},
+        "anchor": {"$ref": "#/$defs/pred"},
+        "members": {"$ref": "#/$defs/pred"},
+        "measures": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["fn"],
+            "properties": {
+              "fn": {"enum": ["count", "sum", "count_distinct", "min", "max"]},
+              "field": {"type": "string"},
+              "where": {"$ref": "#/$defs/pred"}
+            }
+          }
+        },
+        "having": {"$ref": "#/$defs/having"}
+      }
+    },
+    "sequence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "within", "steps"],
+      "properties": {
+        "key": {"$ref": "#/$defs/key"},
+        "within": {"$ref": "#/$defs/duration"},
+        "steps": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["where"],
+            "properties": {
+              "table": {"enum": ["applications", "transactions", "events"]},
+              "where": {"$ref": "#/$defs/pred"}
+            }
+          }
+        },
+        "match": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["step", "field", "anchor_field"],
+            "properties": {
+              "step": {"type": "integer", "minimum": 0},
+              "field": {"type": "string"},
+              "anchor_field": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "key": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "duration": {"oneOf": [{"type": "integer", "minimum": 1}, {"type": "string", "pattern": "^(\\$[a-z_][a-z0-9_]*|[0-9]+[smhd])$"}]},
+    "scalar": {"type": ["integer", "string"]},
+    "pred": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["all"], "properties": {"all": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pred"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["any"], "properties": {"any": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pred"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["not"], "properties": {"not": {"$ref": "#/$defs/pred"}}},
+        {
+          "type": "object",
+          "required": ["field"],
+          "minProperties": 2,
+          "maxProperties": 2,
+          "properties": {
+            "field": {"type": "string"},
+            "eq": {"$ref": "#/$defs/operand"},
+            "ne": {"$ref": "#/$defs/operand"},
+            "lt": {"$ref": "#/$defs/operand"},
+            "lte": {"$ref": "#/$defs/operand"},
+            "gt": {"$ref": "#/$defs/operand"},
+            "gte": {"$ref": "#/$defs/operand"},
+            "in": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/scalar"}},
+            "not_in": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/scalar"}},
+            "is_null": {"const": true},
+            "not_null": {"const": true}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "operand": {
+      "oneOf": [
+        {"$ref": "#/$defs/scalar"},
+        {"type": "object", "additionalProperties": false, "required": ["field"], "properties": {"field": {"type": "string"}, "plus": {"oneOf": [{"type": "integer"}, {"type": "string"}]}}}
+      ]
+    },
+    "term": {
+      "oneOf": [
+        {"$ref": "#/$defs/scalar"},
+        {"type": "object", "additionalProperties": false, "required": ["measure"], "properties": {"measure": {"type": "string"}, "times": {"$ref": "#/$defs/scalar"}}},
+        {"type": "object", "additionalProperties": false, "required": ["anchor"], "properties": {"anchor": {"type": "string"}, "times": {"$ref": "#/$defs/scalar"}}}
+      ]
+    },
+    "having": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["all"], "properties": {"all": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/having"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["any"], "properties": {"any": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/having"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["not"], "properties": {"not": {"$ref": "#/$defs/having"}}},
+        {
+          "type": "object",
+          "required": ["left"],
+          "minProperties": 2,
+          "maxProperties": 2,
+          "additionalProperties": false,
+          "properties": {
+            "left": {"$ref": "#/$defs/term"},
+            "eq": {"$ref": "#/$defs/term"},
+            "ne": {"$ref": "#/$defs/term"},
+            "lt": {"$ref": "#/$defs/term"},
+            "lte": {"$ref": "#/$defs/term"},
+            "gt": {"$ref": "#/$defs/term"},
+            "gte": {"$ref": "#/$defs/term"}
+          }
+        }
+      ]
+    }
+  }
+}

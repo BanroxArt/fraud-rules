@@ -1,0 +1,43 @@
+id: AT-004
+name: mfa-push-fatigue
+title: Burst of denied or ignored MFA prompts for one customer
+category: account-takeover
+severity: medium
+status: stable
+summary: >-
+  Flags an MFA challenge that was denied or timed out when the customer has had
+  at least five such challenges in the trailing 10 minutes.
+rationale: |
+  An attacker holding the password but not the second factor can keep
+  triggering push approvals until the customer accepts one to make the prompts
+  stop. A run of denied or unanswered prompts is the attack in progress, and
+  the customer is the one person who can confirm it. The rule fires on the
+  fifth prompt so the institution can suppress further prompts and contact
+  the customer before the one that gets approved.
+sources:
+  - publisher: FFIEC
+    title: Authentication and Access to Financial Institution Services and Systems (2021)
+    url: https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+    note: Multi-factor authentication and rate limits on authentication requests.
+false_positives:
+  - App bugs that send duplicate prompts. These show up as many customers at
+    once; investigate at the population level.
+tuning:
+  - param: window
+    effect: Counting window.
+  - param: min_prompts
+    effect: Denied or unanswered prompts needed.
+params:
+  window: 10m
+  min_prompts: 5
+table: events
+aggregate:
+  key: [customer_id]
+  window: $window
+  anchor:
+    all:
+      - {field: event_type, eq: mfa_challenge}
+      - {field: outcome, in: [denied, failure]}
+  measures:
+    prompts: {fn: count}
+  having: {left: prompts, gte: $min_prompts}

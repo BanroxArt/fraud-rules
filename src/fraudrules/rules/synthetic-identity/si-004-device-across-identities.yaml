@@ -1,0 +1,47 @@
+id: SI-004
+name: device-across-identities
+title: One device submitting applications for several identities
+category: synthetic-identity
+severity: high
+status: stable
+summary: >-
+  Flags an application submitted from a device that has submitted applications
+  for at least three different SSN tokens within 30 days.
+rationale: |
+  Building and using synthetic identities is a volume business, and the people
+  doing it apply from a small number of machines. A device identifier tied to
+  three or more SSNs in a month is a much stronger signal than a shared phone
+  or address, because households rarely apply for credit for several adults
+  from one browser in the same month. The rule depends on the quality of the
+  device identifier; a cookie that is cleared between sessions will miss
+  everything.
+sources:
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit, Identifying Synthetics
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/identifying-synthetics/
+  - publisher: FFIEC
+    title: Authentication and Access to Financial Institution Services and Systems
+    url: https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+    note: >-
+      Describes device identification, device cookies and IP addresses as
+      authentication inputs (Appendix, Device Identification and Enrollment).
+false_positives:
+  - Shared public or library computers, and kiosks in a branch. Exclude device
+    ids known to belong to the institution.
+  - Brokers or dealers keying applications on behalf of customers, for example
+    an indirect auto lender's dealer portal. Scope this rule to direct channels.
+tuning:
+  - param: window
+    effect: Lookback for the linkage.
+  - param: min_ssns
+    effect: Distinct SSN tokens needed to fire.
+params:
+  window: 30d
+  min_ssns: 3
+table: applications
+aggregate:
+  key: [device_id]
+  window: $window
+  measures:
+    ssns: {fn: count_distinct, field: ssn_token}
+  having: {left: ssns, gte: $min_ssns}

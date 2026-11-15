@@ -1,0 +1,50 @@
+id: AT-002
+name: failed-logins-many-ips
+title: Failed logins against one customer from many IP addresses
+category: account-takeover
+severity: medium
+status: stable
+summary: >-
+  Flags a failed login when the same customer has had failed logins from at
+  least five distinct IP addresses in the trailing 10 minutes.
+rationale: |
+  Credential stuffing and password spraying rotate source addresses to stay
+  under per-IP rate limits. Counting distinct IPs per targeted customer turns
+  that rotation into the signal. A real customer who mistypes a password does
+  so from one or two addresses (home, phone). FFIEC's authentication guidance
+  calls for rate limits on log-in attempts from the same user and from the
+  same IP address; this rule is the detective counterpart for the attempts
+  that rotate around the second limit.
+sources:
+  - publisher: FFIEC
+    title: Authentication and Access to Financial Institution Services and Systems (2021)
+    url: https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+    note: Rate limits on log-in attempts and lockout after incorrect attempts.
+  - publisher: FinCEN
+    title: Account Takeover Activity (FIN-2011-A016)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+false_positives:
+  - Mobile carriers with carrier-grade NAT can show a customer on several
+    addresses in minutes. Hashing the /24 rather than the full address
+    reduces this.
+  - Aggregators and personal finance apps that hold stale credentials and
+    retry from their own address pools.
+tuning:
+  - param: window
+    effect: Counting window.
+  - param: min_ips
+    effect: Distinct IP tokens needed to fire.
+params:
+  window: 10m
+  min_ips: 5
+table: events
+aggregate:
+  key: [customer_id]
+  window: $window
+  anchor:
+    all:
+      - {field: event_type, eq: login}
+      - {field: outcome, eq: failure}
+  measures:
+    ips: {fn: count_distinct, field: ip_token}
+  having: {left: ips, gte: $min_ips}

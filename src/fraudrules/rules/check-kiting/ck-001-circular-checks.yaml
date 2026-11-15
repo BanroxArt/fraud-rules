@@ -1,0 +1,58 @@
+id: CK-001
+name: circular-checks
+title: Checks flowing both ways with the same counterparty within days
+category: check-kiting
+severity: high
+status: stable
+summary: >-
+  Flags a check entry when, in the trailing 5 days, the account has both
+  deposited at least two checks from and written at least two checks to the
+  same counterparty, with at least $5,000 deposited.
+rationale: |
+  A kite runs on float: a check drawn on account A at one bank is deposited to
+  account B at another, a check drawn on B goes back to A before the first one
+  clears, and the cycle repeats with growing amounts so each account shows
+  balances that do not exist. From inside one bank the visible part is checks
+  going both ways with the same outside party in a short time. FFIEC lists
+  funds that move from one bank to another and back. Regulation CC lets a
+  bank extend a hold when it has reasonable cause to doubt collectibility,
+  which is the action this rule is meant to inform.
+sources:
+  - publisher: eCFR, 12 CFR 229.13
+    title: Regulation CC, Exceptions (to funds availability schedules)
+    url: https://www.ecfr.gov/current/title-12/chapter-II/subchapter-A/part-229/subpart-B/section-229.13
+    note: Reasonable cause to doubt collectibility (229.13(e)) and repeated overdrafts (229.13(d)).
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Movements of funds from one bank to another and then back to the first bank.
+false_positives:
+  - A business and its owner moving money between a business and a personal
+    account at different banks. Amounts are usually irregular and not
+    escalating; review the amount trend before acting.
+  - Related companies that settle intercompany balances by check.
+tuning:
+  - param: window
+    effect: Cycle window. Kites cycle within the clearing time, so this should not exceed a few business days.
+  - param: min_each_way
+    effect: Checks needed in each direction.
+  - param: min_deposited_cents
+    effect: Smallest total deposited from the counterparty.
+params:
+  window: 5d
+  min_each_way: 2
+  min_deposited_cents: 500000
+table: transactions
+aggregate:
+  key: [account_id, counterparty_id]
+  window: $window
+  anchor: {field: channel, eq: check}
+  measures:
+    deposits: {fn: count, where: {field: direction, eq: in}}
+    written: {fn: count, where: {field: direction, eq: out}}
+    deposited: {fn: sum, field: amount_cents, where: {field: direction, eq: in}}
+  having:
+    all:
+      - {left: deposits, gte: $min_each_way}
+      - {left: written, gte: $min_each_way}
+      - {left: deposited, gte: $min_deposited_cents}

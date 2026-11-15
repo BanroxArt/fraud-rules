@@ -1,0 +1,63 @@
+id: FP-003
+name: payment-stacking
+title: Several card payments in a few days adding up to more than the limit
+category: first-party
+severity: medium
+status: stable
+summary: >-
+  Flags a card payment when three or more payments in the trailing 5 days add
+  up to at least the account's credit limit.
+rationale: |
+  A variant of FP-002 that fires before any return arrives. Paying more than
+  the whole limit several times in a few days only makes sense if the payer
+  expects the line to be released before the payments clear. Legitimate
+  customers pay a card once or twice a month and rarely pay more than the
+  balance. Firing on the payments, rather than on the returns, gives the
+  issuer a chance to hold open-to-buy while the ACH debits are still
+  returnable.
+sources:
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/
+  - publisher: Nacha
+    title: Risk Management Topics, Fraud Monitoring Phase 1 (effective March 20, 2026)
+    url: https://www.nacha.org/rules/risk-management-topics-fraud-monitoring-phase-1
+false_positives:
+  - Customers who pay a card after each purchase, typically small business
+    owners using a personal card for expenses. They rarely reach the full
+    limit in five days.
+  - Overpayments to create a credit balance before travel.
+tuning:
+  - param: window
+    effect: Payment window.
+  - param: min_payments
+    effect: Payments needed in the window.
+  - param: limit_pct
+    effect: Total paid, in percent of the credit limit, needed to fire.
+params:
+  window: 5d
+  min_payments: 3
+  limit_pct: 100
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: account_type, eq: card}
+      - {field: txn_type, eq: payment}
+      - {field: direction, eq: in}
+      - {field: credit_limit_cents, gt: 0}
+  members:
+    all:
+      - {field: account_type, eq: card}
+      - {field: txn_type, eq: payment}
+      - {field: direction, eq: in}
+  measures:
+    payments: {fn: count}
+    paid: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: payments, gte: $min_payments}
+      - left: {measure: paid, times: 100}
+        gte: {anchor: credit_limit_cents, times: $limit_pct}

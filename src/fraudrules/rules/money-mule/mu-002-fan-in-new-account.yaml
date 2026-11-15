@@ -1,0 +1,63 @@
+id: MU-002
+name: fan-in-new-account
+title: New personal account credited by many unrelated individuals
+category: money-mule
+severity: medium
+status: stable
+summary: >-
+  Flags a credit from an individual to an account under 60 days old when the
+  account has received credits from at least five distinct individuals in
+  the trailing 7 days.
+rationale: |
+  Scam proceeds reach a mule from many victims, each paying once. A new
+  personal account with five or more distinct individual payers in a week has
+  no ordinary explanation for most retail customers; FFIEC calls out many
+  small incoming transfers, and Nacha's RDFI monitoring rule points at
+  velocity and account age as monitoring factors for incoming credits.
+  Restricting to individual counterparties excludes payroll, benefits and
+  merchant refunds.
+sources:
+  - publisher: FinCEN
+    title: Advisory on Imposter Scams and Money Mule Schemes Related to COVID-19 (FIN-2020-A003)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2020-a003
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+  - publisher: Nacha
+    title: Risk Management Topics, Fraud Monitoring Phase 1 (effective March 20, 2026)
+    url: https://www.nacha.org/rules/risk-management-topics-fraud-monitoring-phase-1
+false_positives:
+  - Roommates splitting rent, group gifts, fundraising for an event. Usually
+    small amounts; add a minimum total if these dominate.
+  - Sole proprietors using a personal account for customer payments. Those
+    accounts tend to keep the pattern for months; the account-age limit drops
+    them after 60 days.
+tuning:
+  - param: window
+    effect: Counting window.
+  - param: min_senders
+    effect: Distinct individual senders needed to fire.
+  - param: max_account_age
+    effect: Only accounts younger than this are checked.
+params:
+  window: 7d
+  min_senders: 5
+  max_account_age: 60d
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: in}
+      - {field: counterparty_type, eq: individual}
+      - {field: channel, in: [ach, wire, rtp, p2p]}
+      - {field: ts, lt: {field: account_opened_ts, plus: $max_account_age}}
+  members:
+    all:
+      - {field: direction, eq: in}
+      - {field: counterparty_type, eq: individual}
+      - {field: channel, in: [ach, wire, rtp, p2p]}
+  measures:
+    senders: {fn: count_distinct, field: counterparty_id}
+  having: {left: senders, gte: $min_senders}

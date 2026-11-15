@@ -1,0 +1,46 @@
+id: SI-003
+name: address-shared-across-ssns
+title: Mailing address shared by many SSNs within six months
+category: synthetic-identity
+severity: medium
+status: test
+summary: >-
+  Flags an application whose standardized address, unit included, appears on
+  applications with at least four different SSN tokens within 180 days.
+rationale: |
+  Synthetic identities need a place for cards and statements to arrive. Rings
+  route many identities to a handful of drop addresses: vacant units, mail
+  receiving agencies or a cooperating resident. Counting distinct SSNs per
+  address over a half-year window catches the drop while allowing for normal
+  turnover of tenants. The address must include the unit; without it every
+  apartment building looks like a drop.
+sources:
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit, Identifying Synthetics
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/identifying-synthetics/
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Persons who share an address or phone number.
+false_positives:
+  - Group homes, shelters, dormitories and military housing where many
+    unrelated people share one address.
+  - Addresses standardized without the unit number.
+  - Commercial mail receiving agencies used by legitimate customers. Consider a
+    separate rule keyed on known CMRA addresses rather than raising the global
+    threshold.
+tuning:
+  - param: window
+    effect: Lookback for the linkage.
+  - param: min_ssns
+    effect: Distinct SSN tokens needed to fire.
+params:
+  window: 180d
+  min_ssns: 4
+table: applications
+aggregate:
+  key: [address_token]
+  window: $window
+  measures:
+    ssns: {fn: count_distinct, field: ssn_token}
+  having: {left: ssns, gte: $min_ssns}

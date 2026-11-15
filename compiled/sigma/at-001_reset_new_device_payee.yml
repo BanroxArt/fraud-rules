@@ -1,0 +1,67 @@
+title: Credential reset, then a login from a new device, then a new payee
+id: 711a290c-884b-505a-abe3-1713ad5172c7
+status: stable
+description: Flags a payee added or changed within 24 hours after a password reset or MFA change that
+  was followed by a successful login from a device never seen on the customer.
+references:
+- https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+- https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+author: fraud-rules
+date: '2026-11-15'
+tags:
+- fraudrules.at-001
+- fraudrules.account-takeover
+falsepositives:
+- A customer who forgot a password, got a new phone and paid a new contractor on the same day. Rare but
+  real; the payee step is what makes it worth a call.
+level: high
+correlation:
+  type: temporal_ordered
+  rules:
+  - reset_new_device_payee_step1
+  - reset_new_device_payee_step2
+  - reset_new_device_payee_step3
+  group-by:
+  - customer_id
+  timespan: 1d
+---
+title: 'Credential reset, then a login from a new device, then a new payee: step 1'
+id: fc4ac403-866b-5529-8a53-bba496417c3e
+name: reset_new_device_payee_step1
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type:
+    - password_reset
+    - mfa_change
+    outcome: success
+  condition: selection_1
+---
+title: 'Credential reset, then a login from a new device, then a new payee: step 2'
+id: 8d2850a5-af77-5c38-b233-0518c896532b
+name: reset_new_device_payee_step2
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type: login
+    outcome: success
+    device_new: 1
+  condition: selection_1
+---
+title: 'Credential reset, then a login from a new device, then a new payee: step 3'
+id: d7fe055c-a857-5d39-b520-ed6c6eefe554
+name: reset_new_device_payee_step3
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type:
+    - payee_added
+    - payee_changed
+    outcome: success
+  condition: selection_1

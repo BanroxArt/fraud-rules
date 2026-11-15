@@ -1,0 +1,63 @@
+id: MU-004
+name: p2p-in-cash-out
+title: P2P credits from several people followed by a cash withdrawal
+category: money-mule
+severity: medium
+status: test
+summary: >-
+  Flags a cash or ATM withdrawal when the account received P2P credits from at
+  least three distinct senders in the previous 72 hours and the withdrawal is
+  at least 70% of those credits.
+rationale: |
+  Cash breaks the trail. A common low-sophistication mule pattern is to
+  collect P2P payments from several victims and withdraw the money in cash at
+  an ATM the same or next day. FinCEN's elder exploitation advisory also lists
+  frequent large withdrawals, including daily maximum ATM withdrawals. Both
+  sides are needed: P2P fan-in without a cash-out is common among friends, and
+  ATM withdrawals by themselves are ordinary.
+sources:
+  - publisher: FinCEN
+    title: Advisory on Imposter Scams and Money Mule Schemes Related to COVID-19 (FIN-2020-A003)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2020-a003
+  - publisher: FinCEN
+    title: Advisory on Elder Financial Exploitation (FIN-2022-A002)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2022-a002
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+false_positives:
+  - Customers who sell goods informally and are paid by P2P, then bank cash
+    elsewhere. Often recurring; consider an allow list after review.
+  - Shared expenses (a group trip) paid back by P2P and withdrawn for cash
+    spending.
+tuning:
+  - param: window
+    effect: How far back P2P credits count.
+  - param: min_senders
+    effect: Distinct P2P senders needed.
+  - param: cash_out_pct
+    effect: Withdrawal as a percentage of the P2P credits.
+params:
+  window: 72h
+  min_senders: 3
+  cash_out_pct: 70
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: channel, in: [cash, atm]}
+  members:
+    all:
+      - {field: direction, eq: in}
+      - {field: channel, eq: p2p}
+  measures:
+    senders: {fn: count_distinct, field: counterparty_id}
+    received: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: senders, gte: $min_senders}
+      - left: {anchor: amount_cents, times: 100}
+        gte: {measure: received, times: $cash_out_pct}

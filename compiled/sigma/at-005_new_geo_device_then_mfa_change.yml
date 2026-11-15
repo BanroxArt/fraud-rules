@@ -1,0 +1,52 @@
+title: Login from a new device in a new country, then an MFA change
+id: 1af66b83-a8ab-5e9c-8038-c7a96926b3c5
+status: stable
+description: Flags an MFA enrollment change within one hour after a successful login from a device and
+  a country never seen on the customer.
+references:
+- https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+- https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+author: fraud-rules
+date: '2026-11-15'
+tags:
+- fraudrules.at-005
+- fraudrules.account-takeover
+falsepositives:
+- Customers travelling abroad with a new phone. Rare in the same hour as an MFA change, but it happens
+  when the old phone is lost.
+- Consumer VPNs exiting in another country.
+level: high
+correlation:
+  type: temporal_ordered
+  rules:
+  - new_geo_device_then_mfa_change_step1
+  - new_geo_device_then_mfa_change_step2
+  group-by:
+  - customer_id
+  timespan: 1h
+---
+title: 'Login from a new device in a new country, then an MFA change: step 1'
+id: 1d922b5e-27ec-5262-a63d-07eafbf1e801
+name: new_geo_device_then_mfa_change_step1
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type: login
+    outcome: success
+    device_new: 1
+    geo_new: 1
+  condition: selection_1
+---
+title: 'Login from a new device in a new country, then an MFA change: step 2'
+id: bbf997b5-be55-5cd3-aa36-c815297a2d2d
+name: new_geo_device_then_mfa_change_step2
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type: mfa_change
+    outcome: success
+  condition: selection_1

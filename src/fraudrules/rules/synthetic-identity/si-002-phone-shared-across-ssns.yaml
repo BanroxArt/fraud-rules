@@ -1,0 +1,48 @@
+id: SI-002
+name: phone-shared-across-ssns
+title: Phone number shared by several SSNs within a short period
+category: synthetic-identity
+severity: medium
+status: stable
+summary: >-
+  Flags an application whose phone token appears on applications carrying at
+  least three different SSN tokens within 90 days.
+rationale: |
+  Fraud rings reuse contact points because phones and inboxes they control are
+  more expensive than SSNs. One phone number on applications for several
+  different SSNs, in a short window, is one of the linkage signals the Federal
+  Reserve's synthetic identity toolkit lists for identity verification at
+  onboarding. The window keeps the rule from firing on a household that applied
+  for different products years apart.
+sources:
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit, Identifying Synthetics
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/identifying-synthetics/
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: >-
+      Lists persons who share an address or phone number among its red flags,
+      in the terrorist financing section; the linkage logic is the same.
+false_positives:
+  - Family members applying together, typically two or three SSNs on a landline
+    or a parent's mobile. Raise min_ssns or exclude product = dda.
+  - Employer or caseworker phone numbers given by applicants who have no phone
+    of their own.
+  - Test or placeholder numbers in the origination system. Strip those before
+    tokenizing.
+tuning:
+  - param: window
+    effect: Lookback for the linkage.
+  - param: min_ssns
+    effect: Distinct SSN tokens needed to fire.
+params:
+  window: 90d
+  min_ssns: 3
+table: applications
+aggregate:
+  key: [phone_token]
+  window: $window
+  measures:
+    ssns: {fn: count_distinct, field: ssn_token}
+  having: {left: ssns, gte: $min_ssns}

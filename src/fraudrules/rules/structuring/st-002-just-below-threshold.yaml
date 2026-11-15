@@ -1,0 +1,56 @@
+id: ST-002
+name: just-below-threshold
+title: Repeated cash deposits just below the reporting threshold
+category: structuring
+severity: medium
+status: stable
+summary: >-
+  Flags a cash deposit between $9,000.00 and $9,999.99 when the customer has
+  made at least three such deposits in the trailing 14 days.
+rationale: |
+  Structurers who know the threshold, but not the aggregation rule, keep each
+  deposit just under it on different days. FFIEC lists currency deposited in
+  amounts just below reporting thresholds as a red flag, and 31 CFR 1010.314
+  prohibits structuring regardless of whether any single day crosses the
+  threshold. The amount band is the signal: real cash takings are not drawn
+  from a narrow band just under $10,000 several times in two weeks.
+sources:
+  - publisher: eCFR, 31 CFR 1010.314
+    title: Structured transactions
+    url: https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1010/subpart-C/section-1010.314
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Currency deposited or withdrawn in amounts just below identification or reporting thresholds.
+false_positives:
+  - Businesses with a policy of depositing whenever the till reaches a fixed
+    amount below $10,000. Usually documented in the customer due diligence
+    file.
+tuning:
+  - param: window
+    effect: Counting window.
+  - param: band_low_cents
+    effect: Bottom of the band. Lower it to catch less disciplined structurers, at a cost in volume.
+  - param: band_high_cents
+    effect: Top of the band; one cent under the threshold.
+  - param: min_deposits
+    effect: Deposits in the band needed to fire.
+params:
+  window: 14d
+  band_low_cents: 900000
+  band_high_cents: 999999
+  min_deposits: 3
+table: transactions
+aggregate:
+  key: [customer_id]
+  window: $window
+  anchor:
+    all:
+      - {field: channel, in: [cash, atm]}
+      - {field: direction, eq: in}
+      - {field: txn_type, eq: deposit}
+      - {field: amount_cents, gte: $band_low_cents}
+      - {field: amount_cents, lte: $band_high_cents}
+  measures:
+    deposits: {fn: count}
+  having: {left: deposits, gte: $min_deposits}

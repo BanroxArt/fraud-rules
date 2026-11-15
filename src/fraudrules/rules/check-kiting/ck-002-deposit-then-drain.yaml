@@ -1,0 +1,63 @@
+id: CK-002
+name: deposit-then-drain
+title: Check deposits withdrawn before they could have cleared
+category: check-kiting
+severity: high
+status: stable
+summary: >-
+  Flags a cash, ATM, wire, RTP or P2P debit when it takes out at least 70% of
+  the checks deposited in the previous 48 hours and those deposits total at
+  least $2,500.
+rationale: |
+  Stolen, washed and counterfeit checks are converted to money in the window
+  between deposit and return. FinCEN's 2023 alert on mail theft-related check
+  fraud describes deposits followed by rapid withdrawal or transfer through
+  ATMs and wires, and accounts that seem to exist only to deposit checks.
+  Measuring the debit against the deposits in the preceding window makes the
+  rule independent of the account's normal balance; it does not fire on a
+  customer who deposits a paycheck and leaves it there.
+sources:
+  - publisher: FinCEN
+    title: Alert on Nationwide Surge in Mail Theft-Related Check Fraud Schemes Targeting the U.S. Mail (FIN-2023-Alert003)
+    url: https://www.fincen.gov/news/news-releases/fincen-alert-nationwide-surge-mail-theft-related-check-fraud-schemes-targeting
+  - publisher: eCFR, 12 CFR 229.13
+    title: Regulation CC, Exceptions (to funds availability schedules)
+    url: https://www.ecfr.gov/current/title-12/chapter-II/subchapter-A/part-229/subpart-B/section-229.13
+false_positives:
+  - Customers depositing a large check (a car sale, an insurance settlement)
+    and wiring it on to a title company or a seller. One check, one known
+    recipient; check the counterparty history.
+  - Next-day availability under Regulation CC means some legitimately
+    available funds will be withdrawn inside the window. The rule flags for
+    review; it is not a statement that the funds were unavailable.
+tuning:
+  - param: window
+    effect: How far back check deposits count.
+  - param: min_deposits_cents
+    effect: Smallest total check deposits that matter.
+  - param: drain_pct
+    effect: Debit as a percentage of the deposits.
+params:
+  window: 48h
+  min_deposits_cents: 250000
+  drain_pct: 70
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: channel, in: [cash, atm, wire, rtp, p2p]}
+  members:
+    all:
+      - {field: direction, eq: in}
+      - {field: channel, eq: check}
+      - {field: txn_type, eq: deposit}
+  measures:
+    deposited: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: deposited, gte: $min_deposits_cents}
+      - left: {anchor: amount_cents, times: 100}
+        gte: {measure: deposited, times: $drain_pct}

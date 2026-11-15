@@ -1,0 +1,68 @@
+id: FP-002
+name: payment-spend-return
+title: Card payment spent before it clears, then returned unpaid
+category: first-party
+severity: high
+status: stable
+summary: >-
+  Flags an ACH return on a card account when, within the previous 10 days, a
+  large ACH payment posted and the freed credit was then spent.
+rationale: |
+  Card issuers usually restore open-to-buy as soon as a payment posts, days
+  before the ACH debit could come back unpaid. Bust-out schemes exploit that
+  gap: pay a large amount from an account with no money in it, spend the
+  restored line, and let the payment return for insufficient or uncollected
+  funds, a closed account or a stop payment. The sequence (payment, spend,
+  return) inside the ACH return window is the pattern; any one of the three
+  alone is routine. The return codes listed are the ones that mean the funds
+  were never there or the paying account was not usable, as opposed to
+  administrative returns.
+sources:
+  - publisher: Federal Reserve, FedPayments Improvement
+    title: Synthetic Identity Fraud Mitigation Toolkit
+    url: https://fedpaymentsimprovement.org/resources/synthetic-identity-fraud-mitigation-toolkit/
+  - publisher: Nacha
+    title: Risk Management Topics, Fraud Monitoring Phase 1 (effective March 20, 2026)
+    url: https://www.nacha.org/rules/risk-management-topics-fraud-monitoring-phase-1
+    note: Requires risk-based processes to identify ACH entries initiated due to fraud.
+false_positives:
+  - Customers who paid from the wrong account by mistake and then spent
+    normally. These usually re-pay within days; check the following week.
+  - Payments returned R08 (stop payment) because the customer disputed a
+    duplicate payment.
+tuning:
+  - param: within
+    effect: Time from the payment to the return.
+  - param: min_payment_cents
+    effect: Smallest payment that counts.
+  - param: min_spend_cents
+    effect: Smallest single purchase or cash advance that counts as the spend.
+params:
+  within: 10d
+  min_payment_cents: 100000
+  min_spend_cents: 50000
+sequence:
+  key: [account_id]
+  within: $within
+  steps:
+    - table: transactions
+      where:
+        all:
+          - {field: account_type, eq: card}
+          - {field: txn_type, eq: payment}
+          - {field: direction, eq: in}
+          - {field: channel, eq: ach}
+          - {field: amount_cents, gte: $min_payment_cents}
+    - table: transactions
+      where:
+        all:
+          - {field: account_type, eq: card}
+          - {field: direction, eq: out}
+          - {field: txn_type, in: [purchase, cash_advance]}
+          - {field: amount_cents, gte: $min_spend_cents}
+    - table: transactions
+      where:
+        all:
+          - {field: account_type, eq: card}
+          - {field: txn_type, eq: return}
+          - {field: return_code, in: [R01, R02, R03, R04, R08, R09, R16, R20]}

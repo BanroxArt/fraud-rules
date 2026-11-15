@@ -1,0 +1,40 @@
+title: Failed logins against one customer from many IP addresses
+id: cd2d5250-36ab-5281-81d2-12d8da7e7b54
+status: stable
+description: Flags a failed login when the same customer has had failed logins from at least five distinct
+  IP addresses in the trailing 10 minutes.
+references:
+- https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+- https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+author: fraud-rules
+date: '2026-11-15'
+tags:
+- fraudrules.at-002
+- fraudrules.account-takeover
+falsepositives:
+- Mobile carriers with carrier-grade NAT can show a customer on several addresses in minutes. Hashing
+  the /24 rather than the full address reduces this.
+- Aggregators and personal finance apps that hold stale credentials and retry from their own address pools.
+level: medium
+correlation:
+  type: value_count
+  rules:
+  - failed_logins_many_ips_event
+  group-by:
+  - customer_id
+  timespan: 10m
+  condition:
+    field: ip_token
+    gte: 5
+---
+title: 'Failed logins against one customer from many IP addresses: matching event'
+id: 6c31712f-48b0-5a4b-aee0-928388fd3e54
+name: failed_logins_many_ips_event
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type: login
+    outcome: failure
+  condition: selection_1
