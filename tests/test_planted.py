@@ -16,7 +16,7 @@ def test_every_rule_has_scenarios() -> None:
 
 @pytest.mark.parametrize("seed", [7, 11, 2026])
 def test_planted(seed: int) -> None:
-    ds = generate(seed=seed, customers=150, days=45, copies=2)
+    ds = generate(seed=seed, population=150, days=45, copies=2)
     con = duck.connect()
     duck.load(con, ds.tables)
     for rule in RULES:
@@ -35,14 +35,14 @@ def test_planted(seed: int) -> None:
 
 
 def test_generator_is_deterministic() -> None:
-    a, b = generate(seed=3, customers=40, days=30), generate(seed=3, customers=40, days=30)
+    a, b = generate(seed=3, population=40, days=30), generate(seed=3, population=40, days=30)
     assert a.tables == b.tables
     assert a.planted == b.planted
-    assert generate(seed=4, customers=40, days=30).tables != a.tables
+    assert generate(seed=4, population=40, days=30).tables != a.tables
 
 
 def test_point_in_time_flags() -> None:
-    ds = generate(seed=5, customers=60, days=30)
+    ds = generate(seed=5, population=60, days=30)
     seen: dict[str, set[object]] = {}
     for r in ds.tables["transactions"]:
         if r["counterparty_id"] is None:

@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it using these metadata.
+type: software
+title: fraud-rules
+abstract: >-
+  Vendor-neutral rule pack for financial fraud patterns, compiled to SQL,
+  Sigma and Python with tested cross-backend agreement. Engineering checklist,
+  not legal advice.
+authors:
+  - family-names: Akopian
+    given-names: Art
+    affiliation: Banrox Inc.
+    email: opensource@banrox.com
+repository-code: https://github.com/BanroxArt/fraud-rules
+license: MIT
+version: 0.1.0
+date-released: 2026-11-15
+keywords:
+  - fraud-detection
+  - detection-rules
+  - sigma
+  - sql
+  - aml
+  - account-takeover

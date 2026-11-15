@@ -1,0 +1,48 @@
+id: CK-901
+name: new-account-check-deposits
+title: New account funded almost entirely by check deposits
+category: check-kiting
+severity: medium
+status: experimental
+summary: >-
+  Flags a check deposit to an account under 30 days old when the account has
+  received at least four check deposits totalling $3,000 or more in that time.
+rationale: |
+  An example of a local rule. FinCEN's 2023 alert on mail theft-related check
+  fraud describes new accounts that seem to be used only to deposit checks,
+  followed by withdrawals and transfers. Without a window, the aggregate counts
+  everything up to the deposit, and the account-age condition on the anchor
+  limits that to the account's first month.
+sources:
+  - publisher: FinCEN
+    title: Alert on Nationwide Surge in Mail Theft-Related Check Fraud Schemes Targeting the U.S. Mail (FIN-2023-Alert003)
+    url: https://www.fincen.gov/news/news-releases/fincen-alert-nationwide-surge-mail-theft-related-check-fraud-schemes-targeting
+false_positives:
+  - Small businesses that are paid by check and opened the account to take
+    those payments.
+tuning:
+  - param: max_account_age
+    effect: Accounts older than this are ignored.
+  - param: min_checks
+    effect: Check deposits needed.
+  - param: min_total_cents
+    effect: Smallest total deposited.
+params:
+  max_account_age: 30d
+  min_checks: 4
+  min_total_cents: 300000
+table: transactions
+aggregate:
+  key: [account_id]
+  anchor:
+    all:
+      - {field: channel, eq: check}
+      - {field: direction, eq: in}
+      - {field: ts, lt: {field: account_opened_ts, plus: $max_account_age}}
+  measures:
+    checks: {fn: count}
+    total: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: checks, gte: $min_checks}
+      - {left: total, gte: $min_total_cents}

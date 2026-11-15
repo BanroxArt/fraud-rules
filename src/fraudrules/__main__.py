@@ -6,7 +6,7 @@
     python -m fraudrules sql [--dialect postgres] [--rule ST-001] [--set ST-001.window=1d]
                              [--table transactions=analytics.fr_transactions]
     python -m fraudrules sigma [--rule AT-002] [--out DIR]
-    python -m fraudrules synth --out DIR [--seed 7 --customers 300 --days 60]
+    python -m fraudrules synth --out DIR [--seed 7 --population 300 --days 60]
     python -m fraudrules run --data DIR [--backend duckdb|python] [--rule ...]
 
 ``--set`` overrides a parameter for one rule and may be repeated. ``run`` reads
@@ -89,7 +89,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     sy = sub.add_parser("synth")
     sy.add_argument("--out", type=Path, required=True)
     sy.add_argument("--seed", type=int, default=7)
-    sy.add_argument("--customers", type=int, default=300)
+    sy.add_argument("--population", type=int, default=300)
     sy.add_argument("--days", type=int, default=60)
     rn = sub.add_parser("run")
     rn.add_argument("--data", type=Path, required=True)
@@ -100,7 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.cmd == "synth":
             from .synth import generate
 
-            ds = generate(args.seed, args.customers, args.days)
+            ds = generate(args.seed, args.population, args.days)
             args.out.mkdir(parents=True, exist_ok=True)
             for name, rows in ds.tables.items():
                 duck.write_csv(args.out / f"{name}.csv", name, rows)

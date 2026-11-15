@@ -37,7 +37,7 @@ def test_sigma_to_directory(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
 
 
 def test_synth_then_run_both_backends(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    code, out = run(capsys, "synth", "--out", str(tmp_path), "--customers", "40", "--days", "35")
+    code, out = run(capsys, "synth", "--out", str(tmp_path), "--population", "40", "--days", "35")
     assert code == 0 and json.loads(out)["transactions"] > 0
     planted = json.loads((tmp_path / "planted.json").read_text())
     _, duck_out = run(capsys, "run", "--data", str(tmp_path))

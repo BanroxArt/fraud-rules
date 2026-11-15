@@ -1,0 +1,33 @@
+# fraud-rules
+
+> Vendor-neutral detection rules for financial fraud, written in YAML and compiled to SQL, Sigma and Python that are tested to flag the same rows.
+
+`fraudrules` is a rule pack and compiler. 26 rules cover synthetic identity, first-party bust-out, money mules, check kiting, structuring under the currency transaction report threshold, account takeover, payee fraud (business email compromise) and elder financial exploitation. Each cites its primary sources (31 CFR 1010.311-314, 12 CFR 229.13, FinCEN advisories, FFIEC guidance, Nacha rules, the Federal Reserve's synthetic identity toolkit) and lists false positives and tuning parameters. Rules compile to DuckDB SQL (Postgres, Snowflake and BigQuery via sqlglot), to Sigma correlation rules for digital-banking events, and to a Python reference evaluator; Hypothesis tests check that all of them agree. This is an engineering checklist, not legal advice.
+
+Built and maintained by Art Akopian, CEO of Banrox (https://banrox.com).
+
+## Docs
+
+- [README.md](https://github.com/BanroxArt/fraud-rules/blob/main/README.md): Rule table, usage, Sigma notes, limits and the engineering-checklist disclaimer.
+- [docs/spec.md](https://github.com/BanroxArt/fraud-rules/blob/main/docs/spec.md): The rule format: metadata, parameters, predicates, filter, aggregate and sequence kinds.
+- [docs/semantics.md](https://github.com/BanroxArt/fraud-rules/blob/main/docs/semantics.md): Windows, ordering, null handling and arithmetic, as every backend implements them.
+- [docs/data-model.md](https://github.com/BanroxArt/fraud-rules/blob/main/docs/data-model.md): The applications, transactions and events views, every column, point-in-time fields.
+- [docs/benchmarks.md](https://github.com/BanroxArt/fraud-rules/blob/main/docs/benchmarks.md): Timings and planted-case results on synthetic data.
+- [SKILL.md](https://github.com/BanroxArt/fraud-rules/blob/main/SKILL.md): Agent skill for choosing, tuning and running the rules.
+
+## Source
+
+- [rule.schema.json](https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/rule.schema.json): JSON Schema for rule files.
+- [rules/](https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/rules): The rule files, one directory per category.
+- [loader.py](https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/loader.py): Validation, parameters and overrides.
+- [pyeval.py](https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/pyeval.py): Reference evaluator that defines the semantics.
+- [sql.py](https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/sql.py): SQL compiler and dialect transpiling.
+- [sigma.py](https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/sigma.py): Sigma emitter; [sigma_ref.py](https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/sigma_ref.py): reference interpreter for the emitted subset.
+- [synth.py](https://github.com/BanroxArt/fraud-rules/blob/main/src/fraudrules/synth.py): Synthetic data with planted positives and near misses.
+- [compiled/](https://github.com/BanroxArt/fraud-rules/blob/main/compiled): Ready-made SQL per dialect and Sigma YAML.
+
+## Optional
+
+- [CHANGELOG](https://github.com/BanroxArt/fraud-rules/blob/main/CHANGELOG.md): Notable changes.
+- [SECURITY](https://github.com/BanroxArt/fraud-rules/blob/main/SECURITY.md): How to report a vulnerability.
+- [CONTRIBUTING](https://github.com/BanroxArt/fraud-rules/blob/main/CONTRIBUTING.md): How to add or change a rule.

@@ -244,12 +244,12 @@ class Builder:
 # Background population ----------------------------------------------------
 
 
-def _background(b: Builder, customers: int, days: int) -> None:
+def _background(b: Builder, population: int, days: int) -> None:
     rng = b.rng
-    employers = [b.next_id("biz") for _ in range(max(5, customers // 40))]
+    employers = [b.next_id("biz") for _ in range(max(5, population // 40))]
     billers = [b.next_id("biz") for _ in range(30)]
     end = T0 + days * DAY
-    for _ in range(customers):
+    for _ in range(population):
         age = rng.randint(19, 88)
         cid = b.customer(age)
         dda = b.account(cid, "dda", T0 - rng.randint(200, 4000) * DAY)
@@ -350,7 +350,7 @@ def _background(b: Builder, customers: int, days: int) -> None:
             day = T0 + rng.randint(0, days - 1) * DAY + 12 * HOUR
             b.event(cid, day, "payee_added", device_id=phone_dev, ip_token=home_ip, payee_id=b.next_id("py"))
     # new-to-bank applications, a few households sharing a phone or address
-    for _ in range(customers // 3):
+    for _ in range(population // 3):
         ts = T0 + rng.randint(0, days * DAY - 1)
         age = rng.randint(19, 80)
         phone = b.token("ph")
@@ -639,12 +639,12 @@ SCENARIOS: dict[str, Scenario] = {
 }
 
 
-def generate(seed: int = 7, customers: int = 300, days: int = 60, copies: int = 1) -> Dataset:
+def generate(seed: int = 7, population: int = 300, days: int = 60, copies: int = 1) -> Dataset:
     """Background population plus ``copies`` positive and near-miss scenarios per rule."""
     if days < 30:
         raise ValueError("days must be at least 30 so every scenario fits")
     b = Builder(random.Random(seed))
-    _background(b, customers, days)
+    _background(b, population, days)
     for _ in range(copies):
         for rule_id, fn in SCENARIOS.items():
             for kind in ("positive", "near_miss"):

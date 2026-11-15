@@ -17,7 +17,7 @@ def test_every_rule_transpiles_and_parses_back(dialect: str) -> None:
 
 
 def test_pack_union_matches_per_rule_runs() -> None:
-    ds = generate(seed=9, customers=80, days=40)
+    ds = generate(seed=9, population=80, days=40)
     con = duck.connect()
     duck.load(con, ds.tables)
     rows = con.execute(compile_pack(RULES)).fetchall()

@@ -122,6 +122,7 @@ TEXT_SUFFIXES = {
     ".jsonl",
     ".cfg",
     ".ini",
+    ".sql",
 }
 TEXT_NAMES = {"LICENSE", ".gitignore", "Makefile", "Dockerfile"}
 
