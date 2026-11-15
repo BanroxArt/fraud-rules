@@ -105,7 +105,7 @@ _OPS: dict[str, Callable[[object, object], bool]] = {
 
 
 def _key(r: Row, key: tuple[str, ...]) -> tuple[int | str, ...] | None:
-    out = []
+    out: list[int | str] = []
     for k in key:
         v = r.get(k)
         if v is None:
@@ -136,7 +136,7 @@ def evaluate(rule: m.Rule, tables: Tables) -> set[str]:
 
 
 def run(rules: Iterable[m.Rule], tables: Tables) -> list[Hit]:
-    out = []
+    out: list[Hit] = []
     for rule in rules:
         out.extend(Hit(rule.id, rule.table, i) for i in evaluate(rule, tables))
     return sorted(out)
@@ -251,8 +251,7 @@ def _sequence(lg: m.Sequence, tables: Tables) -> set[str]:
             while j < len(rs) and times[j] < t_a:
                 r = rs[j]
                 if all(
-                    (v := r.get(mt.field)) is not None and v == a.get(mt.anchor_field)
-                    for mt in matches[i]
+                    (v := r.get(mt.field)) is not None and v == a.get(mt.anchor_field) for mt in matches[i]
                 ):
                     found = times[j]
                     break

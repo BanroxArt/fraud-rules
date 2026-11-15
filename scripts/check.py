@@ -207,9 +207,7 @@ def lint_file(path: Path) -> None:
     elif path.suffix == ".py":
         prose = python_prose(text)
     else:
-        prose = [
-            (i, ln) for i, ln in enumerate(text.splitlines(), 1) if ln.lstrip().startswith("#")
-        ]
+        prose = [(i, ln) for i, ln in enumerate(text.splitlines(), 1) if ln.lstrip().startswith("#")]
     for i, line in prose:
         m = STYLE_RE.search(line)
         if m:

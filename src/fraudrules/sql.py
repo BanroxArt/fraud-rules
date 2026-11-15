@@ -97,10 +97,7 @@ def _having_sql(h: m.Having, measures: Mapping[str, m.Measure]) -> str:
 
 def _head(rule: m.Rule, alias: str, distinct: bool = False) -> str:
     d = "DISTINCT " if distinct else ""
-    return (
-        f"SELECT {d}{lit(rule.id)} AS rule_id, {lit(rule.table)} AS anchor_table, "
-        f"{alias}.id AS anchor_id"
-    )
+    return f"SELECT {d}{lit(rule.id)} AS rule_id, {lit(rule.table)} AS anchor_table, {alias}.id AS anchor_id"
 
 
 def compile_rule(rule: m.Rule, tables: Mapping[str, str] | None = None) -> str:

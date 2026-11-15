@@ -146,9 +146,7 @@ def _meta(rule: m.Rule) -> dict[str, Any]:
     return {
         "title": rule.title,
         "id": _uuid(rule, "rule"),
-        "status": {"stable": "stable", "test": "test", "experimental": "experimental"}[
-            rule.status
-        ],
+        "status": {"stable": "stable", "test": "test", "experimental": "experimental"}[rule.status],
         "description": rule.summary,
         "references": [s.url for s in rule.sources],
         "author": "fraud-rules",

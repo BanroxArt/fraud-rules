@@ -74,7 +74,9 @@ def _span(rule: m.Rule) -> int:
     return 86_400
 
 
-def tables_for(rule: m.Rule, max_rows: int = 24) -> st.SearchStrategy[dict[str, list[dict[str, int | str | None]]]]:
+def tables_for(
+    rule: m.Rule, max_rows: int = 24
+) -> st.SearchStrategy[dict[str, list[dict[str, int | str | None]]]]:
     consts: dict[str, dict[str, set[int | str]]] = defaultdict(lambda: defaultdict(set))
     refs: dict[str, dict[str, set[int]]] = defaultdict(lambda: defaultdict(set))
     for table, p in _preds(rule):
@@ -90,7 +92,9 @@ def tables_for(rule: m.Rule, max_rows: int = 24) -> st.SearchStrategy[dict[str, 
         for mt in rule.logic.match:
             match_fields |= {mt.field, mt.anchor_field}
 
-    def column_strategy(table: str, name: str, typ: str, nullable: bool) -> st.SearchStrategy[int | str | None]:
+    def column_strategy(
+        table: str, name: str, typ: str, nullable: bool
+    ) -> st.SearchStrategy[int | str | None]:
         base: st.SearchStrategy[int | str | None]
         if name == "ts":
             return st.sampled_from(ts_values)
@@ -141,7 +145,9 @@ def tables_for(rule: m.Rule, max_rows: int = 24) -> st.SearchStrategy[dict[str, 
             if c.name == "id":
                 continue
             special = opened_ts(table, c.name)
-            fields[c.name] = special if special is not None else column_strategy(table, c.name, c.type, c.nullable)
+            fields[c.name] = (
+                special if special is not None else column_strategy(table, c.name, c.type, c.nullable)
+            )
         plain = st.fixed_dictionaries(fields)
         aimed = [
             st.tuples(plain, satisfying(p, int_domain(table))).map(lambda ab: {**ab[0], **ab[1]})
@@ -156,7 +162,9 @@ def tables_for(rule: m.Rule, max_rows: int = 24) -> st.SearchStrategy[dict[str, 
             lambda r: st.sampled_from(tight).map(lambda ts: {**r, **pin, "ts": ts})
         )
 
-        def with_ids(parts: tuple[list[dict[str, int | str | None]], list[dict[str, int | str | None]]]) -> list[dict[str, int | str | None]]:
+        def with_ids(
+            parts: tuple[list[dict[str, int | str | None]], list[dict[str, int | str | None]]],
+        ) -> list[dict[str, int | str | None]]:
             rs = parts[0] + parts[1]
             return [{"id": f"{table[0]}{i}", **r} for i, r in enumerate(rs)]
 
@@ -228,7 +236,11 @@ def _field_values(cs: list[m.Cmp], ints: list[int]) -> st.SearchStrategy[int | s
         vals = sorted((x for x in allowed if x not in excluded), key=str)
         return st.sampled_from(vals) if vals else None
     if lo > -(10**18) or hi < 10**18:
-        cand = sorted({x for x in ints if lo <= x <= hi} | ({lo} if lo > -(10**18) else set()) | ({hi} if hi < 10**18 else set()))
+        cand = sorted(
+            {x for x in ints if lo <= x <= hi}
+            | ({lo} if lo > -(10**18) else set())
+            | ({hi} if hi < 10**18 else set())
+        )
         cand = [x for x in cand if lo <= x <= hi and x not in excluded]
         return st.sampled_from(cand) if cand else None
     if excluded:

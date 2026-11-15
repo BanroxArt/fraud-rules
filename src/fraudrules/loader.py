@@ -175,9 +175,7 @@ def _term(ctx: _Ctx, table: str, raw: Any, measures: Mapping[str, m.Measure]) ->
     return m.Term("const", const=ctx.int_(raw, "constant"))
 
 
-def _having(
-    ctx: _Ctx, table: str, raw: Mapping[str, Any], measures: Mapping[str, m.Measure]
-) -> m.Having:
+def _having(ctx: _Ctx, table: str, raw: Mapping[str, Any], measures: Mapping[str, m.Measure]) -> m.Having:
     if "all" in raw:
         return m.HAll(tuple(_having(ctx, table, h, measures) for h in raw["all"]))
     if "any" in raw:
@@ -288,7 +286,7 @@ def parse_rule(
     for knob in raw["tuning"]:
         if knob["param"] not in params:
             raise RuleError(f"{path}: tuning names unknown parameter {knob['param']!r}")
-    for t in (logic.steps if isinstance(logic, m.Sequence) else [logic]):
+    for t in logic.steps if isinstance(logic, m.Sequence) else [logic]:
         if t.table not in TABLES:
             raise RuleError(f"{path}: unknown table {t.table!r}")
     return m.Rule(
@@ -300,7 +298,9 @@ def parse_rule(
         status=raw["status"],
         summary=raw["summary"].strip(),
         rationale=raw["rationale"].strip(),
-        sources=tuple(m.Source(s["title"], s["url"], s["publisher"], s.get("note", "")) for s in raw["sources"]),
+        sources=tuple(
+            m.Source(s["title"], s["url"], s["publisher"], s.get("note", "")) for s in raw["sources"]
+        ),
         false_positives=tuple(raw["false_positives"]),
         tuning=tuple(m.Knob(k["param"], k["effect"]) for k in raw["tuning"]),
         params=params,

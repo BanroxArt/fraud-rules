@@ -45,16 +45,25 @@ def test_good_rule_and_overrides() -> None:
         (lambda r: r["aggregate"].update(key=["nope"]), "no column 'nope'"),
         (lambda r: r["aggregate"]["having"].update(gte="$missing"), "unknown parameter"),
         (lambda r: r["params"].update(spare=1), "not used"),
-        (lambda r: r["aggregate"]["measures"].update(s={"fn": "sum", "field": "event_type"}), "integer column"),
+        (
+            lambda r: r["aggregate"]["measures"].update(s={"fn": "sum", "field": "event_type"}),
+            "integer column",
+        ),
         (lambda r: r["aggregate"]["measures"].update(s={"fn": "count", "field": "ts"}), "takes no field"),
-        (lambda r: r["aggregate"].update(anchor={"field": "event_type", "gt": "a"}), "only allowed on integers"),
+        (
+            lambda r: r["aggregate"].update(anchor={"field": "event_type", "gt": "a"}),
+            "only allowed on integers",
+        ),
         (lambda r: r["aggregate"].update(anchor={"field": "device_new", "eq": "1"}), "is int"),
         (lambda r: r["aggregate"].update(anchor={"field": "device_new", "eq": True}), "booleans|not valid"),
         (lambda r: r["aggregate"].update(window="10 minutes"), "does not match|bad duration"),
         (lambda r: r["aggregate"]["having"].update(left="nope"), "unknown measure"),
         (lambda r: r.update(tuning=[{"param": "zzz", "effect": "x"}]), "unknown parameter 'zzz'"),
         (lambda r: r.update(sources=[{"publisher": "p", "title": "t", "url": "http://x"}]), "does not match"),
-        (lambda r: r.update(filter={"field": "ts", "gt": 1}), "is valid under each of|should not be valid|valid"),
+        (
+            lambda r: r.update(filter={"field": "ts", "gt": 1}),
+            "is valid under each of|should not be valid|valid",
+        ),
     ],
 )
 def test_rejects(mutate: Any, message: str) -> None:

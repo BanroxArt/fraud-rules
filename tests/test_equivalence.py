@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import BY_ID, RULES
+from conftest import BY_ID
 from hypothesis import HealthCheck, Phase, given, settings
 from hypothesis import strategies as st
 from strategies import tables_for

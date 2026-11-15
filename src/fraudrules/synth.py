@@ -277,25 +277,71 @@ def _background(b: Builder, customers: int, days: int) -> None:
             if rng.random() < 0.02:
                 b.event(cid, day + rng.randint(7, 22) * HOUR, "login", "failure", phone_dev, home_ip)
             if card is not None and rng.random() < 0.5:
-                b.txn(card, day + rng.randint(8, 21) * HOUR, "purchase", "out", "card",
-                      rng.randint(5, 180) * 100, b.next_id("m"), "business")
+                b.txn(
+                    card,
+                    day + rng.randint(8, 21) * HOUR,
+                    "purchase",
+                    "out",
+                    "card",
+                    rng.randint(5, 180) * 100,
+                    b.next_id("m"),
+                    "business",
+                )
             if rng.random() < 0.05:
-                b.txn(dda, day + rng.randint(8, 20) * HOUR, "withdrawal", "out", "atm",
-                      rng.choice([60, 100, 200, 300]) * 100, location_id=f"atm{rng.randint(1, 40)}")
+                b.txn(
+                    dda,
+                    day + rng.randint(8, 20) * HOUR,
+                    "withdrawal",
+                    "out",
+                    "atm",
+                    rng.choice([60, 100, 200, 300]) * 100,
+                    location_id=f"atm{rng.randint(1, 40)}",
+                )
             if rng.random() < 0.02:
-                b.txn(dda, day + rng.randint(9, 16) * HOUR, "deposit", "in", "cash",
-                      rng.randint(50, 2500) * 100, location_id=f"br{rng.randint(1, 12)}")
+                b.txn(
+                    dda,
+                    day + rng.randint(9, 16) * HOUR,
+                    "deposit",
+                    "in",
+                    "cash",
+                    rng.randint(50, 2500) * 100,
+                    location_id=f"br{rng.randint(1, 12)}",
+                )
             if friends and rng.random() < 0.04:
-                b.txn(dda, day + rng.randint(9, 22) * HOUR, "transfer", rng.choice(["in", "out"]),
-                      "p2p", rng.randint(10, 150) * 100, rng.choice(friends), "individual")
+                b.txn(
+                    dda,
+                    day + rng.randint(9, 22) * HOUR,
+                    "transfer",
+                    rng.choice(["in", "out"]),
+                    "p2p",
+                    rng.randint(10, 150) * 100,
+                    rng.choice(friends),
+                    "individual",
+                )
             if d % 30 == 3:
                 for biller in my_billers:
-                    b.txn(dda, day + 6 * HOUR, "payment", "out", "ach", rng.randint(40, 400) * 100,
-                          biller, "business")
+                    b.txn(
+                        dda,
+                        day + 6 * HOUR,
+                        "payment",
+                        "out",
+                        "ach",
+                        rng.randint(40, 400) * 100,
+                        biller,
+                        "business",
+                    )
             if card is not None and d % 30 == 20:
                 assert card.limit is not None
-                b.txn(card, day + 7 * HOUR, "payment", "in", "ach",
-                      rng.randint(100, max(101, card.limit // 400)) * 100, f"self_{cid}", "individual")
+                b.txn(
+                    card,
+                    day + 7 * HOUR,
+                    "payment",
+                    "in",
+                    "ach",
+                    rng.randint(100, max(101, card.limit // 400)) * 100,
+                    f"self_{cid}",
+                    "individual",
+                )
         if rng.random() < 0.03:
             day = T0 + rng.randint(0, days - 1) * DAY + 10 * HOUR
             b.event(cid, day, "password_reset", device_id=phone_dev, ip_token=home_ip)
@@ -309,12 +355,27 @@ def _background(b: Builder, customers: int, days: int) -> None:
         age = rng.randint(19, 80)
         phone = b.token("ph")
         address = b.token("ad")
-        b.application(ts, b.token("ssn"), b.token("nm"), 3650 + rng.randint(0, 20000), age, phone,
-                      address, file_months=rng.randint(24, 400) if age > 22 else rng.randint(6, 60),
-                      au_lines=rng.choice([0, 0, 0, 1, 2]))
+        b.application(
+            ts,
+            b.token("ssn"),
+            b.token("nm"),
+            3650 + rng.randint(0, 20000),
+            age,
+            phone,
+            address,
+            file_months=rng.randint(24, 400) if age > 22 else rng.randint(6, 60),
+            au_lines=rng.choice([0, 0, 0, 1, 2]),
+        )
         if rng.random() < 0.15:  # spouse on the same phone and address
-            b.application(ts + rng.randint(1, 20) * DAY, b.token("ssn"), b.token("nm"),
-                          3650 + rng.randint(0, 20000), age, phone, address)
+            b.application(
+                ts + rng.randint(1, 20) * DAY,
+                b.token("ssn"),
+                b.token("nm"),
+                3650 + rng.randint(0, 20000),
+                age,
+                phone,
+                address,
+            )
 
 
 # Planted scenarios ----------------------------------------------------------
@@ -322,8 +383,16 @@ def _background(b: Builder, customers: int, days: int) -> None:
 Scenario = Callable[[Builder, int, bool], None]
 
 
-def _apps_sharing(b: Builder, t: int, n: int, gap: int, *, phone: str | None = None,
-                  address: str | None = None, device: str | None = None) -> None:
+def _apps_sharing(
+    b: Builder,
+    t: int,
+    n: int,
+    gap: int,
+    *,
+    phone: str | None = None,
+    address: str | None = None,
+    device: str | None = None,
+) -> None:
     for i in range(n):
         b.application(t + i * gap, b.token("ssn"), b.token("nm"), 9000 + i, 35, phone, address, device)
 
@@ -364,8 +433,17 @@ def fp002(b: Builder, t: int, pos: bool) -> None:
     card = b.account(b.customer(45), "card", t - 300 * DAY, 300000)
     b.txn(card, t, "payment", "in", "ach", 200000, "ext_acct_x", "individual")
     b.txn(card, t + DAY, "purchase", "out", "card", 150000, b.next_id("m"), "business")
-    b.txn(card, t + (5 if pos else 12) * DAY, "return", "out", "ach", 200000, "ext_acct_x",
-          "individual", return_code="R01")
+    b.txn(
+        card,
+        t + (5 if pos else 12) * DAY,
+        "return",
+        "out",
+        "ach",
+        200000,
+        "ext_acct_x",
+        "individual",
+        return_code="R01",
+    )
 
 
 def fp003(b: Builder, t: int, pos: bool) -> None:
@@ -385,14 +463,24 @@ def mu001(b: Builder, t: int, pos: bool) -> None:
 def mu002(b: Builder, t: int, pos: bool) -> None:
     acct = b.account(b.customer(27), "dda", t - 10 * DAY)
     for i in range(6 if pos else 4):
-        b.txn(acct, t + i * 18 * HOUR, "transfer", "in", "p2p", 45000 + i * 1000, b.next_id("ind"), "individual")
+        b.txn(
+            acct, t + i * 18 * HOUR, "transfer", "in", "p2p", 45000 + i * 1000, b.next_id("ind"), "individual"
+        )
 
 
 def mu003(b: Builder, t: int, pos: bool) -> None:
     acct = b.account(b.customer(33))
     for i in range(5):
-        b.txn(acct, t + i * 6 * HOUR, "transfer", "out", "rtp", 150000 if pos else 50000,
-              b.next_id("ind"), "individual")
+        b.txn(
+            acct,
+            t + i * 6 * HOUR,
+            "transfer",
+            "out",
+            "rtp",
+            150000 if pos else 50000,
+            b.next_id("ind"),
+            "individual",
+        )
 
 
 def mu004(b: Builder, t: int, pos: bool) -> None:
@@ -445,7 +533,7 @@ def _known_device(b: Builder, cid: str, t: int) -> tuple[str, str]:
 
 def at001(b: Builder, t: int, pos: bool) -> None:
     cid = b.customer(44)
-    dev, ip = _known_device(b, cid, t)
+    dev, _ = _known_device(b, cid, t)
     b.event(cid, t, "password_reset", channel="ivr")
     b.event(cid, t + 2 * HOUR, "login", device_id=b.token("dv") if pos else dev, ip_token=b.token("ip"))
     b.event(cid, t + 3 * HOUR, "payee_added", device_id=dev, payee_id=b.next_id("py"))
@@ -461,10 +549,13 @@ def at002(b: Builder, t: int, pos: bool) -> None:
 def at003(b: Builder, t: int, pos: bool) -> None:
     cid = b.customer(58)
     dev, ip = _known_device(b, cid, t)
-    order = ("email_change", "payee_changed") if pos else ("payee_changed", "email_change")
-    b.event(cid, t, order[0], device_id=dev, ip_token=ip, payee_id=b.next_id("py") if pos is False else None)
-    b.event(cid, t + 10 * HOUR, order[1], device_id=dev, ip_token=ip,
-            payee_id=b.next_id("py") if pos else None)
+    payee = b.next_id("py")
+    if pos:
+        b.event(cid, t, "email_change", device_id=dev, ip_token=ip)
+        b.event(cid, t + 10 * HOUR, "payee_changed", device_id=dev, ip_token=ip, payee_id=payee)
+    else:  # same two events, wrong order
+        b.event(cid, t, "payee_changed", device_id=dev, ip_token=ip, payee_id=payee)
+        b.event(cid, t + 10 * HOUR, "email_change", device_id=dev, ip_token=ip)
 
 
 def at004(b: Builder, t: int, pos: bool) -> None:
@@ -477,8 +568,15 @@ def at004(b: Builder, t: int, pos: bool) -> None:
 def at005(b: Builder, t: int, pos: bool) -> None:
     cid = b.customer(37)
     _known_device(b, cid, t)
-    b.event(cid, t, "login", device_id=b.token("dv"), ip_token=b.token("ip"), country="RO" if pos else "US",
-            channel="web")
+    b.event(
+        cid,
+        t,
+        "login",
+        device_id=b.token("dv"),
+        ip_token=b.token("ip"),
+        country="RO" if pos else "US",
+        channel="web",
+    )
     b.event(cid, t + 20 * MIN, "mfa_change", channel="web")
 
 

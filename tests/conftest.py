@@ -7,8 +7,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fraudrules import model as m  # noqa: E402
-from fraudrules.loader import load_pack  # noqa: E402
+from fraudrules import model as m
+from fraudrules.loader import load_pack
 
 RULES = load_pack()
 BY_ID = {r.id: r for r in RULES}

@@ -68,7 +68,7 @@ def evaluate(con: duckdb.DuckDBPyConnection, rule: m.Rule, sql: str | None = Non
 
 
 def run(con: duckdb.DuckDBPyConnection, rules: Iterable[m.Rule]) -> list[Hit]:
-    out = []
+    out: list[Hit] = []
     for rule in rules:
         out.extend(Hit(rule.id, rule.table, i) for i in evaluate(con, rule))
     return sorted(out)

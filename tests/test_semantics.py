@@ -106,9 +106,16 @@ def test_ne_is_false_on_null_but_not_eq_is_true() -> None:
 def test_not_in_and_not_null() -> None:
     r = rule(
         table="events",
-        filter={"all": [{"field": "payee_id", "not_in": ["p1", "p2"]}, {"field": "ip_token", "not_null": True}]},
+        filter={
+            "all": [{"field": "payee_id", "not_in": ["p1", "p2"]}, {"field": "ip_token", "not_null": True}]
+        },
     )
-    rows = [ev(0, 1), ev(1, 2, payee_id="p3"), ev(2, 3, payee_id="p2"), ev(3, 4, payee_id="p4", ip_token=None)]
+    rows = [
+        ev(0, 1),
+        ev(1, 2, payee_id="p3"),
+        ev(2, 3, payee_id="p2"),
+        ev(3, 4, payee_id="p4", ip_token=None),
+    ]
     assert all_backends(r, rows) == {"e1"}
 
 
@@ -136,8 +143,12 @@ def test_sequence_needs_strict_order() -> None:
 
 def test_sequence_window_is_measured_from_the_first_step() -> None:
     r = rule(**SEQ)
-    assert all_backends(r, [ev(0, 0, event_type="email_change"), ev(1, 100, event_type="payee_added")]) == set()
-    assert all_backends(r, [ev(0, 1, event_type="email_change"), ev(1, 100, event_type="payee_added")]) == {"e1"}
+    assert (
+        all_backends(r, [ev(0, 0, event_type="email_change"), ev(1, 100, event_type="payee_added")]) == set()
+    )
+    assert all_backends(r, [ev(0, 1, event_type="email_change"), ev(1, 100, event_type="payee_added")]) == {
+        "e1"
+    }
 
 
 def test_sequence_match_pins_a_field_to_the_anchor() -> None:
@@ -191,7 +202,11 @@ def test_measure_filters_and_null_sums() -> None:
             "window": 1000,
             "measures": {
                 "ok": {"fn": "count", "where": {"field": "outcome", "eq": "success"}},
-                "ages": {"fn": "sum", "field": "customer_age", "where": {"field": "outcome", "eq": "success"}},
+                "ages": {
+                    "fn": "sum",
+                    "field": "customer_age",
+                    "where": {"field": "outcome", "eq": "success"},
+                },
             },
             "having": {"any": [{"left": "ok", "gte": 2}, {"left": "ages", "lt": 0}]},
         },

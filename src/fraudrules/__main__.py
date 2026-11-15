@@ -104,9 +104,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.out.mkdir(parents=True, exist_ok=True)
             for name, rows in ds.tables.items():
                 duck.write_csv(args.out / f"{name}.csv", name, rows)
-            planted = [
-                {"rule_id": x.rule_id, "kind": x.kind, "rows": sorted(x.rows)} for x in ds.planted
-            ]
+            planted = [{"rule_id": x.rule_id, "kind": x.kind, "rows": sorted(x.rows)} for x in ds.planted]
             (args.out / "planted.json").write_text(json.dumps(planted, indent=1) + "\n")
             print(json.dumps(ds.size()))
             return 0
@@ -136,9 +134,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(f"# {r.id}\n{text}---")
         elif args.cmd == "run":
             tables = {
-                t: _read_csv(args.data / f"{t}.csv", t)
-                for t in TABLES
-                if (args.data / f"{t}.csv").is_file()
+                t: _read_csv(args.data / f"{t}.csv", t) for t in TABLES if (args.data / f"{t}.csv").is_file()
             }
             if args.backend == "python":
                 hits = pyeval.run(rules, tables)

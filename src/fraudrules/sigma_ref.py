@@ -79,7 +79,7 @@ def _selection(row: Row, sel: Any) -> bool:
 
 
 def _condition(expr: str) -> Callable[[Mapping[str, bool]], bool]:
-    tokens = _TOKEN.findall(expr)
+    tokens: list[str] = _TOKEN.findall(expr)
     if "".join(tokens).replace(" ", "") != expr.replace(" ", ""):
         raise ValueError(f"unsupported condition {expr!r}")
     pos = 0
