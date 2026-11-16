@@ -168,10 +168,16 @@ def tables_for(
             rs = parts[0] + parts[1]
             return [{"id": f"{table[0]}{i}", **r} for i, r in enumerate(rs)]
 
-        return st.tuples(
-            st.lists(row, max_size=max_rows // 2),
-            st.lists(burst_row, max_size=max_rows // 2),
-        ).map(with_ids)
+        # Hypothesis keeps most lists short, and a rule that needs three distinct
+        # senders plus a cash-out (MU-004) needs at least four rows on one key.
+        # Half the time the burst is forced to that size so count thresholds are
+        # reached in most runs rather than in a lucky few.
+        n = max_rows // 2
+        burst = st.one_of(
+            st.lists(burst_row, max_size=n),
+            st.lists(burst_row, min_size=min(5, n), max_size=n),
+        )
+        return st.tuples(st.lists(row, max_size=n), burst).map(with_ids)
 
     return st.fixed_dictionaries({t: rows(t) for t in rule.tables()})
 

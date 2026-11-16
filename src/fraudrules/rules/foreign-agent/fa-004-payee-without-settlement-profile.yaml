@@ -1,0 +1,51 @@
+id: FA-004
+name: payee-without-settlement-profile
+title: MSB pays a foreign company that does not look like a settlement counterparty
+category: foreign-agent
+severity: medium
+status: experimental
+summary: >-
+  Flags an outgoing wire from an MSB account (or on an agent's instruction) to a
+  foreign business when the payee is a general trading or textile company, has
+  no web presence, or was formed less than 180 days before the payment.
+rationale: |
+  Alert009 says the third parties in the suspicious payments often lacked the
+  profile of a recipient of bulk MSB funds, and gives the examples used here: a
+  textile company, a general trading company, a company with no web presence,
+  a newly created company. The same list appears in the red flags for principal
+  MSBs and for banks that serve MSBs, so the rule fires on either a
+  directing_agent_id or customer_segment = msb. 180 days for "newly created" is
+  our choice, not the alert's.
+sources:
+  - publisher: FinCEN
+    title: FinCEN Alert on Risks Associated with Foreign-Agent-Directed Transactions (FIN-2026-Alert009, October 30, 2026)
+    url: https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+    note: >-
+      Red flags for principal MSBs, fifth bullet, and for banks, first bullet
+      (payee without the profile of a recipient of bulk MSB funds, with the
+      four examples).
+false_positives:
+  - Trading companies that really are the agent's commercial counterparty and
+    are named in the agreement. Filter on in_agent_agreement upstream if your
+    data has it.
+  - Payees whose web presence check failed for technical reasons. Record the
+    check result, not a default of 0.
+tuning:
+  - param: new_company_age
+    effect: How recently a payee must have been formed to count as new.
+params:
+  new_company_age: 180d
+table: transactions
+filter:
+  all:
+    - {field: direction, eq: out}
+    - {field: channel, eq: wire}
+    - {field: counterparty_type, eq: business}
+    - {field: counterparty_country, ne: us}
+    - any:
+        - {field: directing_agent_id, not_null: true}
+        - {field: customer_segment, eq: msb}
+    - any:
+        - {field: counterparty_sector, in: [general_trading, textile]}
+        - {field: counterparty_web_presence, eq: 0}
+        - {field: ts, lt: {field: counterparty_formed_ts, plus: $new_company_age}}

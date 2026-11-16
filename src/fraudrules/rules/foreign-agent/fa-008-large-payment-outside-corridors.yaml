@@ -1,0 +1,46 @@
+id: FA-008
+name: large-payment-outside-corridors
+title: Large MSB payment to an alert jurisdiction the customer never said it serves
+category: foreign-agent
+severity: medium
+status: experimental
+summary: >-
+  Flags an outgoing wire of at least $25,000 from an MSB account (or on an
+  agent's instruction) to a payee in China, the UAE, Egypt, Kenya, Uganda or
+  Djibouti when that country is not one of the corridors the customer declared
+  (corridor_expected = 0).
+rationale: |
+  An MSB tells its bank who it serves and where its money goes. Alert009 asks
+  banks to look at a customer MSB that sends a large payment, or regular
+  payments, to a third party in one of these countries when that does not fit
+  the population the MSB serves. corridor_expected comes from the account's
+  onboarding profile and must be as of ts. FA-002 covers the "regular" half
+  of the flag on the principal side; this rule covers the single large
+  payment on the bank side. $25,000 is a starting point, not the alert's.
+sources:
+  - publisher: FinCEN
+    title: FinCEN Alert on Risks Associated with Foreign-Agent-Directed Transactions (FIN-2026-Alert009, October 30, 2026)
+    url: https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+    note: >-
+      Red flags for banks providing services to MSBs, third bullet (large or
+      regular payments to a third-party entity in China, the UAE, Egypt or
+      East Africa inconsistent with the primary population served).
+false_positives:
+  - MSBs that added a corridor and told the bank by email but not through the
+    profile update. Update the profile, then the rule stops firing.
+tuning:
+  - param: min_amount_cents
+    effect: Size of payment that counts as large.
+params:
+  min_amount_cents: 2500000
+table: transactions
+filter:
+  all:
+    - {field: direction, eq: out}
+    - {field: channel, eq: wire}
+    - {field: amount_cents, gte: $min_amount_cents}
+    - {field: counterparty_country, in: [cn, ae, eg, ke, ug, dj]}
+    - {field: corridor_expected, eq: 0}
+    - any:
+        - {field: directing_agent_id, not_null: true}
+        - {field: customer_segment, eq: msb}

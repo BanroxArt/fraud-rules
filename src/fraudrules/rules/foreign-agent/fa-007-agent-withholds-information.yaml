@@ -1,0 +1,49 @@
+id: FA-007
+name: agent-withholds-information
+title: Foreign agent ignores or refuses repeated requests for documents or due diligence
+category: foreign-agent
+severity: medium
+status: experimental
+summary: >-
+  Flags an agent_info_request event that went unanswered (failure) or was
+  refused (denied) when the same agent left at least 2 such requests
+  unanswered or refused in the last 90 days.
+rationale: |
+  Three of the alert's red flags for principal MSBs are about an agent that
+  will not explain itself: no invoices or contracts behind its instructions,
+  no evidence of due diligence on the third parties it pays, and no
+  information on its own licensing or AML controls. The bank list has the
+  same flag for a customer MSB that will not document a transfer. Log each
+  request to the agent as an event (customer_id is the agent) with the outcome
+  once its deadline passes, and this becomes a count. It is the one rule in
+  this family that reads only events, so it is also emitted as Sigma.
+sources:
+  - publisher: FinCEN
+    title: FinCEN Alert on Risks Associated with Foreign-Agent-Directed Transactions (FIN-2026-Alert009, October 30, 2026)
+    url: https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+    note: >-
+      Red flags for principal MSBs, fourth, sixth and eighth bullets
+      (documentation, due diligence on the third party, licensing and AML
+      controls). Red flags for banks, second bullet.
+false_positives:
+  - Requests sent to the wrong contact. Record a corrected request as a new
+    event rather than editing the outcome.
+tuning:
+  - param: window
+    effect: How far back unanswered requests count.
+  - param: min_requests
+    effect: How many unanswered or refused requests make the pattern.
+params:
+  window: 90d
+  min_requests: 2
+table: events
+aggregate:
+  key: [customer_id]
+  window: $window
+  anchor:
+    all:
+      - {field: event_type, eq: agent_info_request}
+      - {field: outcome, in: [failure, denied]}
+  measures:
+    unanswered: {fn: count}
+  having: {left: unanswered, gte: $min_requests}

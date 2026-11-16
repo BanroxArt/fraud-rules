@@ -1,0 +1,52 @@
+id: FA-002
+name: third-party-alert-jurisdictions
+title: Agent regularly directs third-party payments to the jurisdictions the alert names
+category: foreign-agent
+severity: medium
+status: experimental
+summary: >-
+  Flags an agent-directed payment to a third party outside the clearing
+  agreement in China, the UAE, Egypt, Kenya, Uganda or Djibouti when the same
+  agent directed at least 3 such payments in the last 30 days.
+rationale: |
+  FinCEN's analysis of the reports behind Alert009 found the suspicious
+  third-party payments going to UAE exchange houses, Chinese banks and trading
+  companies and recipients across East Africa, and the alert turns that into
+  a red flag for agents that do this regularly. The rule counts by agent, not
+  by account, because one agent can instruct payments out of several
+  principal accounts. The country list is the alert's own; extend it from your
+  own SAR history rather than shortening it.
+sources:
+  - publisher: FinCEN
+    title: FinCEN Alert on Risks Associated with Foreign-Agent-Directed Transactions (FIN-2026-Alert009, October 30, 2026)
+    url: https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+    note: >-
+      Red flags for principal MSBs, second bullet: a foreign agent regularly
+      directs payments to third-party entities in third-country jurisdictions
+      such as China, the UAE, Egypt and East African countries, including
+      Kenya, Uganda and Djibouti.
+false_positives:
+  - Agents whose agreements legitimately route settlement through a named
+    exchange house in one of these countries. Those payees should carry
+    in_agent_agreement = 1 and drop out of the rule.
+tuning:
+  - param: window
+    effect: How far back the agent's payments are counted.
+  - param: min_payments
+    effect: How many third-party payments to these countries count as regular.
+params:
+  window: 30d
+  min_payments: 3
+table: transactions
+aggregate:
+  key: [directing_agent_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: directing_agent_id, not_null: true}
+      - {field: in_agent_agreement, eq: 0}
+      - {field: counterparty_country, in: [cn, ae, eg, ke, ug, dj]}
+  measures:
+    payments: {fn: count}
+  having: {left: payments, gte: $min_payments}

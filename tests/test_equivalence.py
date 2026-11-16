@@ -48,7 +48,9 @@ def test_generated_data_fires_and_misses(rule_id: str) -> None:
     rule = BY_ID[rule_id]
     seen: set[bool] = set()
 
-    @settings(max_examples=300, database=None, deadline=None, phases=[Phase.generate])
+    # A fixed seed: this checks the strategy, not the rule, and a check that
+    # passes or fails by luck (MU-004 used to, about one run in seven) is noise.
+    @settings(max_examples=300, database=None, deadline=None, phases=[Phase.generate], derandomize=True)
     @given(tables_for(rule))
     def draw(tables: dict[str, list[dict[str, int | str | None]]]) -> None:
         hits = pyeval.evaluate(rule, tables)

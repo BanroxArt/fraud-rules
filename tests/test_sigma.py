@@ -13,7 +13,8 @@ SIGMA = [r for r in RULES if sigma.emits_sigma(r)]
 
 
 def test_log_shaped_rules_all_emit() -> None:
-    assert {r.id for r in SIGMA} == {r.id for r in RULES if r.category == "account-takeover"}
+    expected = {r.id for r in RULES if r.category == "account-takeover"} | {"FA-007"}
+    assert {r.id for r in SIGMA} == expected
 
 
 @pytest.mark.parametrize("r", SIGMA, ids=lambda r: r.id)

@@ -56,6 +56,19 @@ For cash debits with no counterparty, set `counterparty_new` to 1 unless you rec
 | `account_opened_ts` | int | no | Account open time, epoch seconds. |
 | `customer_age` | int | yes | Customer age in whole years at ts. |
 | `credit_limit_cents` | int | yes | Credit limit at ts, card and credit lines only. |
+| `customer_segment` | str | yes | retail, business or msb. |
+| `directing_agent_id` | str | yes | Foreign agent that instructed this payment, when an MSB pays on an agent's instruction. |
+| `in_agent_agreement` | int | yes | 1 if the payee is the directing agent or a party named in its clearing agreement. |
+| `counterparty_country` | str | yes | ISO 3166-1 alpha-2 country of the payee, lower case. |
+| `counterparty_sector` | str | yes | general_trading, textile, import_export, exchange_house, bank, msb or other. |
+| `counterparty_formed_ts` | int | yes | Payee's registration or incorporation date. |
+| `counterparty_web_presence` | int | yes | 1 if the payee had a findable web presence at ts. |
+| `purpose` | str | yes | Stated payment purpose, normalized to a short lower-case code. |
+| `supporting_docs` | int | yes | 1 if an invoice, contract or order was on file before ts. |
+| `round_amount` | int | yes | 1 if amount_cents is within $10 of a multiple of $1,000. |
+| `corridor_expected` | int | yes | 1 if counterparty_country is a corridor the customer declared for this account. |
+
+The last eleven columns feed the foreign-agent rules (FA-001 to FA-008) and can stay null everywhere else. A principal MSB fills `directing_agent_id`, `in_agent_agreement`, `purpose` and `supporting_docs` from its agent instructions; a bank serving MSBs usually has only `customer_segment`, the payee fields and `corridor_expected` from the customer's onboarding profile, and the rules that need the rest simply never fire there. `supporting_docs`, `counterparty_web_presence` and `corridor_expected` are point-in-time fields like the ones above. `round_amount` is plain arithmetic, `CASE WHEN MOD(amount_cents + 1000, 100000) <= 2000 THEN 1 ELSE 0 END`, kept in the view so no engine has to agree on modulo of a negative number.
 
 ## events
 
@@ -80,7 +93,10 @@ For cash debits with no counterparty, set `counterparty_new` to 1 unless you rec
 - `transactions.txn_type`: deposit, withdrawal, payment, purchase, cash_advance, transfer, return. A card payment is `payment` with direction `in` on the card account. A returned item is `return` with its `return_code` (Nacha R codes for ACH).
 - `transactions.channel`: ach, wire, rtp, check, cash, atm, card, p2p, internal.
 - `transactions.counterparty_type`: individual, business, crypto_exchange, gift_card_merchant, money_transmitter.
-- `events.event_type`: login, mfa_challenge, password_reset, mfa_change, email_change, phone_change, address_change, device_enrolled, payee_added, payee_changed.
+- `events.event_type`: login, mfa_challenge, password_reset, mfa_change, email_change, phone_change, address_change, device_enrolled, payee_added, payee_changed, agent_info_request. An `agent_info_request` is one request from a principal MSB (or a bank) to a foreign agent for documents, due-diligence evidence or licensing and AML information; `customer_id` is the agent, `outcome` is success when answered, failure when the deadline passed with no answer, denied when refused.
 - `events.outcome`: success, failure, denied. An MFA prompt that timed out is `failure`.
-- `events.channel`: web, mobile, ivr, call_center, branch.
+- `events.channel`: web, mobile, ivr, call_center, branch, back_office.
+- `transactions.customer_segment`: retail, business, msb.
+- `transactions.counterparty_sector`: general_trading, textile, import_export, exchange_house, bank, msb, other.
+- `transactions.purpose`: free text normalized to a code; the rules test settlement, services and business_expense.
 - `applications.product`: card, loan, dda, bnpl.

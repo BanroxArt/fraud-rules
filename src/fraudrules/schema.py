@@ -85,6 +85,38 @@ TRANSACTIONS = (
     _c("account_opened_ts", "int", "Account open time, epoch seconds."),
     _c("customer_age", "int", "Customer age in whole years at ts.", True),
     _c("credit_limit_cents", "int", "Credit limit at ts, card and credit lines only.", True),
+    # Money services business columns. Null for ordinary retail rows.
+    _c("customer_segment", "str", "retail, business or msb.", True),
+    _c(
+        "directing_agent_id",
+        "str",
+        "Foreign agent that instructed this payment, when an MSB pays on an agent's instruction.",
+        True,
+    ),
+    _c(
+        "in_agent_agreement",
+        "int",
+        "1 if the payee is the directing agent or a party named in its clearing agreement.",
+        True,
+    ),
+    _c("counterparty_country", "str", "ISO 3166-1 alpha-2 country of the payee, lower case.", True),
+    _c(
+        "counterparty_sector",
+        "str",
+        "general_trading, textile, import_export, exchange_house, bank, msb or other.",
+        True,
+    ),
+    _c("counterparty_formed_ts", "int", "Payee's registration or incorporation date.", True),
+    _c("counterparty_web_presence", "int", "1 if the payee had a findable web presence at ts.", True),
+    _c("purpose", "str", "Stated payment purpose, normalized to a short lower-case code.", True),
+    _c("supporting_docs", "int", "1 if an invoice, contract or order was on file before ts.", True),
+    _c("round_amount", "int", "1 if amount_cents is within $10 of a multiple of $1,000.", True),
+    _c(
+        "corridor_expected",
+        "int",
+        "1 if counterparty_country is a corridor the customer declared for this account.",
+        True,
+    ),
 )
 
 EVENTS = (

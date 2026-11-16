@@ -33,7 +33,7 @@ def test_sql_with_overrides_and_dialect(capsys: pytest.CaptureFixture[str]) -> N
 
 def test_sigma_to_directory(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["sigma", "--out", str(tmp_path)]) == 0
-    assert len(list(tmp_path.glob("*.yml"))) == 5
+    assert len(list(tmp_path.glob("*.yml"))) == 6
 
 
 def test_synth_then_run_both_backends(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

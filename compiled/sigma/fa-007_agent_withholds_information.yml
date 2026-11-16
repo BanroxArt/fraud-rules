@@ -1,0 +1,39 @@
+title: Foreign agent ignores or refuses repeated requests for documents or due diligence
+id: ab5f7d69-8be8-5e43-9736-f447fd3a4aea
+status: experimental
+description: Flags an agent_info_request event that went unanswered (failure) or was refused (denied)
+  when the same agent left at least 2 such requests unanswered or refused in the last 90 days.
+references:
+- https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+author: fraud-rules
+date: '2026-11-15'
+tags:
+- fraudrules.fa-007
+- fraudrules.foreign-agent
+falsepositives:
+- Requests sent to the wrong contact. Record a corrected request as a new event rather than editing the
+  outcome.
+level: medium
+correlation:
+  type: event_count
+  rules:
+  - agent_withholds_information_event
+  group-by:
+  - customer_id
+  timespan: 90d
+  condition:
+    gte: 2
+---
+title: 'Foreign agent ignores or refuses repeated requests for documents or due diligence: matching event'
+id: cb0d478d-295b-5ea9-b5a8-88c41f077c2f
+name: agent_withholds_information_event
+logsource:
+  product: fraudrules
+  category: events
+detection:
+  selection_1:
+    event_type: agent_info_request
+    outcome:
+    - failure
+    - denied
+  condition: selection_1

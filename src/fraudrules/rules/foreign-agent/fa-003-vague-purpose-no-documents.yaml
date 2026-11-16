@@ -1,0 +1,43 @@
+id: FA-003
+name: vague-purpose-no-documents
+title: Third-party payment with a generic purpose and no invoice, contract or order on file
+category: foreign-agent
+severity: medium
+status: experimental
+summary: >-
+  Flags an agent-directed payment to a third party outside the clearing
+  agreement when the stated purpose is missing or one of settlement, services
+  or business_expense, and no supporting document was on file before the
+  payment (supporting_docs is 0 or null).
+rationale: |
+  The alert lists non-descriptive or repetitive purposes ("settlement",
+  "services", "business expense") and missing or inconsistent documentation as
+  separate red flags for principal MSBs, and its bank list repeats the
+  documentation point. Either alone is common in honest settlement traffic.
+  Together, on a payment to someone outside the agreement, they mean the MSB
+  cannot say what it paid for. Normalize free-text purposes to short codes
+  upstream; the three codes here are the alert's own examples.
+sources:
+  - publisher: FinCEN
+    title: FinCEN Alert on Risks Associated with Foreign-Agent-Directed Transactions (FIN-2026-Alert009, October 30, 2026)
+    url: https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+    note: >-
+      Red flags for principal MSBs, third and fourth bullets (generic or
+      unsupported payment reasons; reluctance or failure to provide invoices,
+      contracts or orders). Red flags for banks, second bullet.
+false_positives:
+  - Documents received after the payment. supporting_docs must be computed as
+    of ts, so a late invoice still leaves the hit for a reviewer to close.
+tuning: []
+table: transactions
+filter:
+  all:
+    - {field: direction, eq: out}
+    - {field: directing_agent_id, not_null: true}
+    - {field: in_agent_agreement, eq: 0}
+    - any:
+        - {field: purpose, in: [settlement, services, business_expense]}
+        - {field: purpose, is_null: true}
+    - any:
+        - {field: supporting_docs, eq: 0}
+        - {field: supporting_docs, is_null: true}

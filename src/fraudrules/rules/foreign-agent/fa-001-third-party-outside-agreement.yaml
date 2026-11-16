@@ -1,0 +1,38 @@
+id: FA-001
+name: third-party-outside-agreement
+title: Agent-directed payment to a third party the clearing agreement does not cover
+category: foreign-agent
+severity: medium
+status: experimental
+summary: >-
+  Flags any outgoing payment an MSB makes on a foreign agent's instruction when
+  the payee is neither the agent nor a party named in the agent's clearing
+  agreement (in_agent_agreement = 0).
+rationale: |
+  Alert009 describes foreign agents telling a US principal MSB to pay
+  unrelated companies abroad, often labelled as "settlement", so that the agent
+  is in effect using the principal's bank account as its own. A settlement
+  payment normally goes to the agent or to a party the agreement names. A
+  payment to anyone else is the first red flag the alert lists for principal
+  MSBs. The rule needs one column the MSB already has: who instructed the
+  payment and whether the payee is on the agreement.
+sources:
+  - publisher: FinCEN
+    title: FinCEN Alert on Risks Associated with Foreign-Agent-Directed Transactions (FIN-2026-Alert009, October 30, 2026)
+    url: https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+    note: >-
+      Red flags for principal MSBs, first bullet: a foreign agent directs a
+      payment, including for the purported purpose of settlement, to a
+      third-party entity not covered by the agent clearing agreement.
+false_positives:
+  - Agreements that were amended to add a payee but not yet updated in the
+    system that feeds in_agent_agreement. Fix the reference data, not the rule.
+  - One-off payments the compliance team approved in advance; record the
+    approval and exclude by payment id upstream.
+tuning: []
+table: transactions
+filter:
+  all:
+    - {field: direction, eq: out}
+    - {field: directing_agent_id, not_null: true}
+    - {field: in_agent_agreement, eq: 0}

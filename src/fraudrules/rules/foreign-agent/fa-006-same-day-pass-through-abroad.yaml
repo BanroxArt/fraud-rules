@@ -1,0 +1,60 @@
+id: FA-006
+name: same-day-pass-through-abroad
+title: Funds credited to an MSB account leave for a foreign third party within a day
+category: foreign-agent
+severity: low
+status: experimental
+summary: >-
+  Flags an outgoing wire of at least $10,000 to a payee abroad, not marked as
+  covered by an agent agreement, from an MSB account (or on an agent's
+  instruction) when the same account received a credit of at least $10,000
+  in the previous 24 hours.
+rationale: |
+  The fourth pattern in Alert009 is timing: money deposited into the principal
+  MSB's bank account went out to the third parties by international wire
+  within hours or days of receipt. The alert's red flag on timing and volume
+  that do not fit a settlement arrangement is broad; this rule takes the part
+  that can be measured in one account. It is noisy for a busy MSB on its own
+  and is meant to be read together with FA-001 to FA-005.
+sources:
+  - publisher: FinCEN
+    title: FinCEN Alert on Risks Associated with Foreign-Agent-Directed Transactions (FIN-2026-Alert009, October 30, 2026)
+    url: https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+    note: >-
+      Pattern four in the alert's analysis (transfers abroad within hours or
+      days of receipt), and the timing, volume or nature red flag in both the
+      principal MSB and bank lists.
+false_positives:
+  - Ordinary daily settlement with an agent. Payees covered by the agreement
+    (in_agent_agreement = 1) are excluded; keep that field accurate.
+tuning:
+  - param: within
+    effect: How soon after the credit the wire must go out.
+  - param: min_in_cents
+    effect: Size of the credit that starts the clock.
+  - param: min_out_cents
+    effect: Size of the outgoing wire.
+params:
+  within: 24h
+  min_in_cents: 1000000
+  min_out_cents: 1000000
+sequence:
+  key: [account_id]
+  within: $within
+  steps:
+    - table: transactions
+      where:
+        all:
+          - {field: direction, eq: in}
+          - {field: amount_cents, gte: $min_in_cents}
+    - table: transactions
+      where:
+        all:
+          - {field: direction, eq: out}
+          - {field: channel, eq: wire}
+          - {field: amount_cents, gte: $min_out_cents}
+          - {field: counterparty_country, ne: us}
+          - {not: {field: in_agent_agreement, eq: 1}}
+          - any:
+              - {field: directing_agent_id, not_null: true}
+              - {field: customer_segment, eq: msb}

@@ -34,6 +34,21 @@ MIN = 60
 
 Row = dict[str, int | str | None]
 
+# Transaction columns only money services business rows fill in.
+MSB_COLUMNS = (
+    "customer_segment",
+    "directing_agent_id",
+    "in_agent_agreement",
+    "counterparty_country",
+    "counterparty_sector",
+    "counterparty_formed_ts",
+    "counterparty_web_presence",
+    "purpose",
+    "supporting_docs",
+    "round_amount",
+    "corridor_expected",
+)
+
 
 @dataclass(frozen=True)
 class Planted:
@@ -110,7 +125,12 @@ class Builder:
         counterparty_type: str | None = None,
         return_code: str | None = None,
         location_id: str | None = None,
+        msb: dict[str, int | str | None] | None = None,
     ) -> str:
+        msb = msb or {}
+        unknown = set(msb) - set(MSB_COLUMNS)
+        if unknown:
+            raise TypeError(f"unknown transaction columns: {sorted(unknown)}")
         return self._add(
             "transactions",
             {
@@ -131,6 +151,7 @@ class Builder:
                 "account_opened_ts": acct.opened,
                 "customer_age": acct.age,
                 "credit_limit_cents": acct.limit,
+                **{c: msb.get(c) for c in MSB_COLUMNS},
             },
         )
 
@@ -609,6 +630,90 @@ def el002(b: Builder, t: int, pos: bool) -> None:
         b.txn(acct, t + i * 2 * DAY, "payment", "out", "ach", 200000, b.next_id("cx"), "crypto_exchange")
 
 
+# Foreign-agent-directed payments (FIN-2026-Alert009). The account belongs to a
+# US principal MSB; the agent and every payee are new identifiers.
+
+
+def _msb(b: Builder) -> _Account:
+    return b.account(b.customer(40), "dda")
+
+
+def _agent_wire(
+    b: Builder, acct: _Account, ts: int, amount: int, agent: str | None, **cols: int | str | None
+) -> str:
+    base: dict[str, int | str | None] = {
+        "customer_segment": "msb",
+        "directing_agent_id": agent,
+        "in_agent_agreement": 0,
+        "counterparty_country": "ae",
+        "counterparty_sector": "other",
+        "counterparty_formed_ts": T0 - 2000 * DAY,
+        "counterparty_web_presence": 1,
+        "purpose": "invoice",
+        "supporting_docs": 1,
+        "round_amount": 1 if amount % 100000 in range(0, 1001) or amount % 100000 >= 99000 else 0,
+        "corridor_expected": 1,
+    }
+    base.update(cols)
+    return b.txn(acct, ts, "transfer", "out", "wire", amount, b.next_id("biz"), "business", msb=base)
+
+
+def fa001(b: Builder, t: int, pos: bool) -> None:
+    acct = _msb(b)
+    _agent_wire(b, acct, t, 734512, b.next_id("agt"), in_agent_agreement=0 if pos else 1)
+
+
+def fa002(b: Builder, t: int, pos: bool) -> None:
+    acct, agent = _msb(b), b.next_id("agt")
+    for i, cc in enumerate(["ae", "cn", "ke" if pos else "gb"]):
+        _agent_wire(b, acct, t + i * 4 * DAY, 812345 + i * 1111, agent, counterparty_country=cc)
+
+
+def fa003(b: Builder, t: int, pos: bool) -> None:
+    acct = _msb(b)
+    _agent_wire(b, acct, t, 655432, b.next_id("agt"), purpose="settlement", supporting_docs=0 if pos else 1)
+
+
+def fa004(b: Builder, t: int, pos: bool) -> None:
+    acct = _msb(b)
+    formed = t - (60 if pos else 400) * DAY
+    _agent_wire(b, acct, t, 921377, None, counterparty_formed_ts=formed)
+
+
+def fa005(b: Builder, t: int, pos: bool) -> None:
+    acct = _msb(b)
+    amounts = [5000000, 2500000, 4000000, 3000000 if pos else 3043721]
+    for i, amt in enumerate(amounts):
+        _agent_wire(b, acct, t + i * 5 * DAY, amt, None, counterparty_country="eg")
+
+
+def fa006(b: Builder, t: int, pos: bool) -> None:
+    acct = _msb(b)
+    b.txn(
+        acct,
+        t,
+        "deposit",
+        "in",
+        "wire",
+        4800000,
+        b.next_id("biz"),
+        "business",
+        msb={"customer_segment": "msb"},
+    )
+    _agent_wire(b, acct, t + (20 if pos else 30) * HOUR, 4512345, None, counterparty_country="ug")
+
+
+def fa007(b: Builder, t: int, pos: bool) -> None:
+    agent = b.next_id("agt")
+    b.event(agent, t, "agent_info_request", "failure", channel="back_office")
+    b.event(agent, t + 20 * DAY, "agent_info_request", "denied" if pos else "success", channel="back_office")
+
+
+def fa008(b: Builder, t: int, pos: bool) -> None:
+    acct = _msb(b)
+    _agent_wire(b, acct, t, 3187654, None, counterparty_country="dj", corridor_expected=0 if pos else 1)
+
+
 SCENARIOS: dict[str, Scenario] = {
     "SI-001": si001,
     "SI-002": si002,
@@ -636,6 +741,14 @@ SCENARIOS: dict[str, Scenario] = {
     "PF-002": pf002,
     "EL-001": el001,
     "EL-002": el002,
+    "FA-001": fa001,
+    "FA-002": fa002,
+    "FA-003": fa003,
+    "FA-004": fa004,
+    "FA-005": fa005,
+    "FA-006": fa006,
+    "FA-007": fa007,
+    "FA-008": fa008,
 }
 
 

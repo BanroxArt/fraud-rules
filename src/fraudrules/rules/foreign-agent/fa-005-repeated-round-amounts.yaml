@@ -1,0 +1,51 @@
+id: FA-005
+name: repeated-round-amounts
+title: MSB sends repeated round-dollar wires abroad
+category: foreign-agent
+severity: low
+status: experimental
+summary: >-
+  Flags an outgoing wire abroad from an MSB account (or on an agent's
+  instruction) with round_amount = 1 when the account sent at least 4 such
+  round-amount wires abroad in the last 30 days.
+rationale: |
+  Retail remittance settles in whatever amounts customers sent, so it is rarely
+  round. Alert009 found settlement transfers often in round or near-round
+  dollar amounts, or sent daily, which did not fit the revenue of a real
+  business, and lists repeated round amounts as a red flag for both principal
+  MSBs and their banks. round_amount is computed in the view (within $10 of a
+  multiple of $1,000) so every engine agrees on what round means.
+sources:
+  - publisher: FinCEN
+    title: FinCEN Alert on Risks Associated with Foreign-Agent-Directed Transactions (FIN-2026-Alert009, October 30, 2026)
+    url: https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf
+    note: >-
+      Pattern two in the alert's analysis, and the last red flag in both the
+      principal MSB and bank lists (round or near-round dollar amounts).
+false_positives:
+  - MSBs that prefund an agent in fixed blocks under a written agreement.
+    Those payees should be marked in the agreement and excluded upstream.
+tuning:
+  - param: window
+    effect: How far back round-amount wires are counted.
+  - param: min_wires
+    effect: How many round-amount wires make the pattern.
+params:
+  window: 30d
+  min_wires: 4
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: channel, eq: wire}
+      - {field: counterparty_country, ne: us}
+      - {field: round_amount, eq: 1}
+      - any:
+          - {field: directing_agent_id, not_null: true}
+          - {field: customer_segment, eq: msb}
+  measures:
+    wires: {fn: count}
+  having: {left: wires, gte: $min_wires}

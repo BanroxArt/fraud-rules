@@ -111,7 +111,7 @@ def test_durations() -> None:
 
 def test_pack_is_unique_and_files_are_named_after_ids() -> None:
     rules = load_pack()
-    assert 20 <= len(rules) <= 30
+    assert 20 <= len(rules) <= 40
     for r in rules:
         assert r.path == f"{r.id.lower()}-{r.name}.yaml"
         assert (builtin_dir() / r.category / r.path).is_file()

@@ -2,7 +2,7 @@
 
 Detection rules for financial fraud, written once in a small YAML format and compiled to three targets that give the same answer: portable SQL (tested on DuckDB, transpiled to Postgres, Snowflake and BigQuery), Sigma for the log-shaped rules, and a plain Python evaluator that defines the semantics.
 
-26 rules across synthetic identity, first-party bust-out, money mules, check kiting, structuring, account takeover, payee fraud and elder financial exploitation. Every rule cites the regulation, FinCEN advisory, FFIEC guidance or Nacha rule it is built from, and lists its known false positives and the parameters to tune.
+34 rules across synthetic identity, first-party bust-out, money mules, check kiting, structuring, account takeover, payee fraud, elder financial exploitation and payments directed by the foreign agents of US money transmitters. Every rule cites the regulation, FinCEN advisory, FFIEC guidance or Nacha rule it is built from, and lists its known false positives and the parameters to tune.
 
 Built and maintained by Art Akopian, CEO of [Banrox](https://banrox.com). Banrox builds consumer credit and fraud-prevention software and publishes the general-purpose pieces.
 
@@ -30,6 +30,14 @@ Here a rule is data. One file compiles to every target, and the test suite check
 | [CK-002](src/fraudrules/rules/check-kiting/ck-002-deposit-then-drain.yaml) | Check deposits withdrawn before they could have cleared | aggregate | SQL, Python | FinCEN, eCFR |
 | [EL-001](src/fraudrules/rules/elder-exploitation/el-001-older-adult-large-new-outflow.yaml) | Large wire or cash withdrawal by an older adult to a new counterparty | filter | SQL, Python | Federal Reserve, FinCEN |
 | [EL-002](src/fraudrules/rules/elder-exploitation/el-002-older-adult-scam-rails.yaml) | Older adult paying crypto exchanges, gift card sellers or money transmitters repeatedly | aggregate | SQL, Python | Federal Reserve, FinCEN |
+| [FA-001](src/fraudrules/rules/foreign-agent/fa-001-third-party-outside-agreement.yaml) | Agent-directed payment to a third party the clearing agreement does not cover | filter | SQL, Python | FinCEN |
+| [FA-002](src/fraudrules/rules/foreign-agent/fa-002-third-party-alert-jurisdictions.yaml) | Agent regularly directs third-party payments to the jurisdictions the alert names | aggregate | SQL, Python | FinCEN |
+| [FA-003](src/fraudrules/rules/foreign-agent/fa-003-vague-purpose-no-documents.yaml) | Third-party payment with a generic purpose and no invoice, contract or order on file | filter | SQL, Python | FinCEN |
+| [FA-004](src/fraudrules/rules/foreign-agent/fa-004-payee-without-settlement-profile.yaml) | MSB pays a foreign company that does not look like a settlement counterparty | filter | SQL, Python | FinCEN |
+| [FA-005](src/fraudrules/rules/foreign-agent/fa-005-repeated-round-amounts.yaml) | MSB sends repeated round-dollar wires abroad | aggregate | SQL, Python | FinCEN |
+| [FA-006](src/fraudrules/rules/foreign-agent/fa-006-same-day-pass-through-abroad.yaml) | Funds credited to an MSB account leave for a foreign third party within a day | sequence | SQL, Python | FinCEN |
+| [FA-007](src/fraudrules/rules/foreign-agent/fa-007-agent-withholds-information.yaml) | Foreign agent ignores or refuses repeated requests for documents or due diligence | aggregate | SQL, Python, Sigma | FinCEN |
+| [FA-008](src/fraudrules/rules/foreign-agent/fa-008-large-payment-outside-corridors.yaml) | Large MSB payment to an alert jurisdiction the customer never said it serves | filter | SQL, Python | FinCEN |
 | [FP-001](src/fraudrules/rules/first-party/fp-001-sleeper-line-maxout.yaml) | Seasoned card account draws most of its credit line within a week | aggregate | SQL, Python | FFIEC, Federal Reserve |
 | [FP-002](src/fraudrules/rules/first-party/fp-002-payment-spend-return.yaml) | Card payment spent before it clears, then returned unpaid | sequence | SQL, Python | Federal Reserve, Nacha |
 | [FP-003](src/fraudrules/rules/first-party/fp-003-payment-stacking.yaml) | Several card payments in a few days adding up to more than the limit | aggregate | SQL, Python | Federal Reserve, Nacha |
@@ -119,16 +127,34 @@ sql = transpile(compile_rule(rules[0]), "bigquery")
 
 ## Sigma
 
-The five account takeover rules read only digital-banking events and are emitted as Sigma: `event_count`, `value_count` and `temporal_ordered` correlations (Sigma correlation specification 2.x) over base rules with `logsource: {product: fraudrules, category: events}`. Map that log source and the field names to your SIEM with a pySigma pipeline. Two things to know:
+The five account takeover rules and FA-007 read only events and are emitted as Sigma: `event_count`, `value_count` and `temporal_ordered` correlations (Sigma correlation specification 2.x) over base rules with `logsource: {product: fraudrules, category: events}`. Map that log source and the field names to your SIEM with a pySigma pipeline. Two things to know:
 
 - Sigma's `not` is true when a field is missing; the pack's `!=` is false on a null. The emitter writes `x != v` as `not (x: v or x: null)` so the two agree.
 - Sigma leaves the output of a correlation to the backend. The reference interpreter in `fraudrules.sigma_ref` reports the event at which the condition first holds in the trailing timespan, which is what the SQL reports. Backends that report a group instead will alert once per group.
 
 Rules over transactions and applications are not emitted as Sigma; they need joins and arithmetic a SIEM is the wrong place for.
 
+## Foreign-agent-directed payments (FIN-2026-Alert009)
+
+On October 30, 2026 FinCEN published [FIN-2026-Alert009](https://www.fincen.gov/system/files/2026-10/FinCEN-Alert-Foreign-Agent-Directed-Transactions.pdf). A US money transmitter settles with its foreign agents through its own bank accounts. FinCEN found agents using that channel to have the US principal wire money to unrelated companies abroad (UAE exchange houses, Chinese banks and trading companies, recipients across East Africa), labelled as "settlement", in round amounts, often within hours of the funds arriving, with little or no paperwork. The alert puts the suspicious payments it identified in BSA reporting from 2021 to 2025 at more than $8 billion, and asks for the key term `FIN2026FOREIGNAGENT` in SAR field 2 and the narrative.
+
+FA-001 to FA-008 turn the alert's nine red flags for principal MSBs and five for banks that serve MSBs into rules. Each rule file cites the bullet it implements:
+
+| alert red flag | rules |
+|---|---|
+| Payment to a third party not covered by the agent clearing agreement | FA-001 |
+| Regular payments to third parties in China, the UAE, Egypt, Kenya, Uganda, Djibouti | FA-002, FA-008 (bank side) |
+| Generic or unsupported purpose; missing or inconsistent documents | FA-003, FA-007 |
+| Payee with no apparent relationship or without a bulk-MSB-funds profile (textile or general trading company, no web presence, newly created) | FA-004 |
+| No evidence of due diligence on the payee; no licensing or AML information | FA-007 |
+| Timing, volume or nature inconsistent with settlement | FA-006 (funds out within a day of receipt) |
+| Round or near-round dollar amounts | FA-005 |
+
+They need eleven extra nullable columns on `transactions` and one event type, listed in [docs/data-model.md](docs/data-model.md). A bank that only has its MSB customer's wires gets FA-004, FA-005, FA-006 and FA-008; a principal MSB that records which agent instructed each payment gets all eight. All eight are `experimental`: they encode the alert's wording, and nobody has tuned them on real MSB traffic yet.
+
 ## Results on synthetic data
 
-`make bench` on 2,000 synthetic customers over 90 days (108k transactions, 132k events, 836 applications) with three planted cases per rule: every planted positive caught, no near miss flagged, all rules in one DuckDB query in about 0.1 s and in the Python evaluator in about 5 s. [docs/benchmarks.md](docs/benchmarks.md) has the details. The background population is deliberately plain, so the zero false-positive count there says nothing about precision on real data. It shows the rules do what they claim on the cases they claim.
+`make bench` on 2,000 synthetic customers over 90 days (108k transactions, 132k events, 836 applications) with planted cases for every rule: every planted positive caught, no near miss flagged, all rules in one DuckDB query in about 0.1 s and in the Python evaluator in about 5 s. [docs/benchmarks.md](docs/benchmarks.md) has the details. The background population is deliberately plain, so the zero false-positive count there says nothing about precision on real data. It shows the rules do what they claim on the cases they claim.
 
 ## Limits
 
@@ -139,7 +165,7 @@ Rules over transactions and applications are not emitted as Sigma; they need joi
 
 ## Sources
 
-Every rule file lists its own. The pack draws on: 31 CFR 1010.311, 1010.313 and 1010.314 and 31 U.S.C. 5324 (currency reporting and structuring); 12 CFR 229.13 (Regulation CC exception holds); FinCEN advisories FIN-2011-A016 (account takeover), FIN-2016-A003 and FIN-2019-A005 (email compromise), FIN-2020-A003 (money mules), FIN-2022-A002 (elder financial exploitation) and alert FIN-2023-Alert003 (mail theft-related check fraud); the FFIEC BSA/AML Examination Manual, Appendix F; the FFIEC guidance Authentication and Access to Financial Institution Services and Systems (2021); the Interagency Statement on Elder Financial Exploitation (2024); Nacha's 2026 fraud monitoring rules; and the Federal Reserve's Synthetic Identity Fraud Mitigation Toolkit.
+Every rule file lists its own. The pack draws on: 31 CFR 1010.311, 1010.313 and 1010.314 and 31 U.S.C. 5324 (currency reporting and structuring); 12 CFR 229.13 (Regulation CC exception holds); FinCEN advisories FIN-2011-A016 (account takeover), FIN-2016-A003 and FIN-2019-A005 (email compromise), FIN-2020-A003 (money mules), FIN-2022-A002 (elder financial exploitation) and alerts FIN-2023-Alert003 (mail theft-related check fraud) and FIN-2026-Alert009 (foreign-agent-directed transactions); the FFIEC BSA/AML Examination Manual, Appendix F; the FFIEC guidance Authentication and Access to Financial Institution Services and Systems (2021); the Interagency Statement on Elder Financial Exploitation (2024); Nacha's 2026 fraud monitoring rules; and the Federal Reserve's Synthetic Identity Fraud Mitigation Toolkit.
 
 ## Development
 
