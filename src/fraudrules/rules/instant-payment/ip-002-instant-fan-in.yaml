@@ -1,0 +1,72 @@
+id: IP-002
+name: instant-fan-in
+title: Young account receives instant credits from many senders in a day
+category: instant-payment
+severity: medium
+status: experimental
+summary: >-
+  Flags an incoming RTP, FedNow or P2P credit to an account under 60 days old
+  when at least five distinct senders have paid it a total of at least $2,500
+  by instant payment in the trailing 24 hours.
+rationale: |
+  A collection mule gathers money from several victims of the same scam, or
+  from several upstream mules, into one account. MU-002 counts senders over a
+  week across all rails. On instant rails the same pattern compresses into
+  hours, and the receiving bank is the only party that sees all the senders
+  at once: each sending bank sees one ordinary payment. Firing on the credit
+  that crosses the threshold gives the receiving bank a reason to restrict
+  outbound payments before the money moves on, which IP-001 and IP-003 would
+  otherwise catch only after the first leg out.
+sources:
+  - publisher: Federal Reserve Financial Services
+    title: FedNow Service, Fraud mitigation at a glance
+    url: https://explore.fednow.org/resources/fraud-at-a-glance.pdf
+    note: Mule-prevention strategy; account activity thresholds by customer segment.
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Funds transfers from many unrelated parties to one account.
+  - publisher: FinCEN
+    title: Advisory on Imposter Scams and Money Mule Schemes Related to COVID-19 (FIN-2020-A003)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2020-a003
+    note: Money mule schemes, in which people are recruited to receive and pass on fraud proceeds.
+false_positives:
+  - Someone selling things online, collecting rent from several tenants, or
+    running a fundraiser for a funeral or a team. Business accounts should be
+    excluded in the view; for personal accounts the age limit does most of
+    the work.
+tuning:
+  - param: window
+    effect: Counting window.
+  - param: min_senders
+    effect: Distinct senders needed.
+  - param: min_total_cents
+    effect: Total instant inflow in the window.
+  - param: max_account_age
+    effect: Only accounts younger than this are checked.
+params:
+  window: 24h
+  min_senders: 5
+  min_total_cents: 250000
+  max_account_age: 60d
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: in}
+      - {field: channel, in: [rtp, fednow, p2p]}
+      - {field: ts, lt: {field: account_opened_ts, plus: $max_account_age}}
+  members:
+    all:
+      - {field: direction, eq: in}
+      - {field: channel, in: [rtp, fednow, p2p]}
+      - {field: txn_type, ne: return}
+  measures:
+    senders: {fn: count_distinct, field: counterparty_id}
+    total: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: senders, gte: $min_senders}
+      - {left: total, gte: $min_total_cents}

@@ -1,0 +1,70 @@
+id: IP-004
+name: new-payee-after-device-or-sim-change
+title: First instant payment to a new payee within a day of a new device or SIM change
+category: instant-payment
+severity: high
+status: experimental
+summary: >-
+  Flags an outbound RTP, FedNow or P2P payment of at least $500 to a
+  first-time payee when, in the previous 24 hours, the customer logged in
+  from a device never seen before or the carrier reported a SIM change or
+  port on the customer's phone number.
+rationale: |
+  SIM swapping moves the victim's phone number to a SIM the attacker holds,
+  so SMS codes and calls from the bank go to the attacker. The FBI counted
+  1,611 SIM swap complaints with more than $68 million in losses in 2021
+  alone. A new device login is the same story without the carrier step. In
+  either case the attacker's next move is to send money somewhere the
+  customer has never paid, and on instant rails that is the last point the
+  bank can stop it. FFIEC's 2021 authentication guidance lists restrictions
+  on devices for adding payment recipients among its transaction controls. AT-001 covers a reset, new
+  device and payee setup in a row; this rule needs only one of the two
+  signals, but it requires the money to move.
+sources:
+  - publisher: FBI IC3
+    title: Criminals Increasing SIM Swap Schemes to Steal Millions of Dollars from US Public (I-020822-PSA, February 8, 2022)
+    url: https://www.ic3.gov/PSA/2022/PSA220208
+    note: 320 complaints and about $12 million in losses from 2018 to 2020; 1,611 complaints and more than $68 million in 2021.
+  - publisher: FFIEC
+    title: Authentication and Access to Financial Institution Services and Systems (2021)
+    url: https://www.federalreserve.gov/frrs/guidance/authentication-and-access-to-financial-institution-services-and-systems-interagency-guidance.htm
+    note: Transaction controls including restrictions on devices for adding payment recipients and limits on transactions per day.
+  - publisher: FinCEN
+    title: Account Takeover Activity (FIN-2011-A016)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+    note: Account takeover followed by transfers out of the victim's account.
+false_positives:
+  - A customer who bought a new phone and paid someone new the same day. The
+    rule says hold and verify through a channel the attacker cannot answer,
+    not decline; a call to the phone number on file does not count when the
+    signal is a SIM change.
+  - Customers whose carrier data reports a SIM change on every eSIM transfer.
+tuning:
+  - param: within
+    effect: Time from the device or SIM signal to the payment.
+  - param: min_amount_cents
+    effect: Smallest payment that matters.
+params:
+  within: 24h
+  min_amount_cents: 50000
+sequence:
+  key: [customer_id]
+  within: $within
+  steps:
+    - table: events
+      where:
+        any:
+          - all:
+              - {field: event_type, eq: sim_change}
+              - {field: outcome, eq: success}
+          - all:
+              - {field: event_type, eq: login}
+              - {field: outcome, eq: success}
+              - {field: device_new, eq: 1}
+    - table: transactions
+      where:
+        all:
+          - {field: direction, eq: out}
+          - {field: channel, in: [rtp, fednow, p2p]}
+          - {field: counterparty_new, eq: 1}
+          - {field: amount_cents, gte: $min_amount_cents}

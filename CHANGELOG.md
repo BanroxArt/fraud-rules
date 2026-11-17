@@ -6,6 +6,8 @@ All notable changes to this project are listed here. The format follows [Keep a 
 
 ### Added
 
+- Instant-payment family, IP-001 to IP-006: pass-through within minutes on a new account, instant fan-in, instant fan-out to first-time payees within an hour, first-time payee after a new-device login or SIM change, me-to-me to a destination linked in the last 72 hours, and a large transfer from a long-held account to a same-name account opened in the last 14 days. Sources: FedNow Operating Procedures v3.7 and fraud guide, TCH RTP Request for Return guidelines, FFIEC, FinCEN, FBI IC3. All `experimental`, tested on synthetic data only.
+- `fednow` channel value, `sim_change` event type, and three nullable transaction columns: `payee_self`, `counterparty_linked_ts`, `counterparty_opened_ts`.
 - Foreign-agent family, FA-001 to FA-008, from FinCEN FIN-2026-Alert009 (October 30, 2026) on payments that foreign agents direct US money transmitters to make: third parties outside the clearing agreement, the alert's jurisdictions, generic purposes without documents, payees without a settlement profile, round amounts, funds out within a day, agents that withhold information, large payments outside declared corridors. FA-007 is also emitted as Sigma.
 - Eleven nullable MSB columns on `transactions` and the `agent_info_request` event type.
 

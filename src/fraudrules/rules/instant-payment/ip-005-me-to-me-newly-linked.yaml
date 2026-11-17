@@ -1,0 +1,56 @@
+id: IP-005
+name: me-to-me-newly-linked
+title: Large transfer to the customer's own account at another bank, linked days ago
+category: instant-payment
+severity: high
+status: experimental
+summary: >-
+  Flags an outbound RTP, FedNow, P2P or wire transfer of at least $2,000 to a
+  destination the bank verified as the customer's own when that destination
+  was linked less than 72 hours earlier.
+rationale: |
+  Transfers between a customer's own accounts are usually the safest payments
+  a bank sees, and many banks exempt them from payee checks. Two schemes rely
+  on that. In an account takeover, the attacker opens an account in the
+  victim's name at another institution with the stolen identity, links it,
+  and moves the money "to the victim". In the safe-account scam the FBI
+  describes, a caller posing as the bank or a government agency tells the
+  victim their money is at risk and must be moved to a new account for
+  protection. Both end with a me-to-me transfer to a destination that did not
+  exist on the profile a few days earlier. FedNow's fraud guide notes that
+  mule accounts are opened with stolen and synthetic identities, which is why
+  an ownership match alone does not settle it.
+sources:
+  - publisher: FBI IC3
+    title: '"Phantom Hacker" Scams Target Senior Citizens and Result in Victims Losing their Life Savings (I-091223-PSA, September 29, 2023)'
+    url: https://www.ic3.gov/PSA/2023/PSA230929
+    note: Victims told to move money to a "safe" account and later to a new "alias" account for protection.
+  - publisher: Federal Reserve Financial Services
+    title: FedNow Service, Fraud mitigation at a glance
+    url: https://explore.fednow.org/resources/fraud-at-a-glance.pdf
+    note: Mule accounts opened using stolen and synthetic identities.
+  - publisher: FinCEN
+    title: Account Takeover Activity (FIN-2011-A016)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+    note: Changes to customer and account profiles followed by transfers.
+false_positives:
+  - A customer opening an account at a new bank and moving their savings
+    there, which is common and legitimate. It is still worth a call through
+    the number on file when the amount is large and the link is new, and the
+    call should ask whether anyone told them to move the money.
+tuning:
+  - param: max_link_age
+    effect: How recently the destination must have been linked.
+  - param: min_amount_cents
+    effect: Smallest transfer that matters.
+params:
+  max_link_age: 72h
+  min_amount_cents: 200000
+table: transactions
+filter:
+  all:
+    - {field: direction, eq: out}
+    - {field: channel, in: [rtp, fednow, p2p, wire]}
+    - {field: payee_self, eq: 1}
+    - {field: amount_cents, gte: $min_amount_cents}
+    - {field: ts, lt: {field: counterparty_linked_ts, plus: $max_link_age}}

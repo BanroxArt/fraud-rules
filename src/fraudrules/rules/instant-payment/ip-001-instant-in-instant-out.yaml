@@ -1,0 +1,80 @@
+id: IP-001
+name: instant-in-instant-out
+title: New account sends an instant credit straight back out within minutes
+category: instant-payment
+severity: high
+status: experimental
+summary: >-
+  Flags an outbound RTP, FedNow or P2P payment from an account under 30 days
+  old when it moves at least 80% of the instant credits received in the
+  previous 30 minutes, and those credits total at least $1,000.
+rationale: |
+  MU-001 looks for pass-through over three days, which is the right scale for
+  ACH and wires. On instant rails a mule does not need three days: the
+  victim's payment lands in seconds and the mule, or the script running the
+  mule's login, pushes it on before anyone at either bank has looked. The
+  receiving bank's window to act is the time between the credit and the
+  outbound payment, so this rule only looks at credits from RTP, FedNow and
+  P2P in the half hour before the outbound leg. Recovery after that depends
+  on a return request the next bank may refuse: TCH's guidance says an RTP
+  payment is final once accepted and the receiver has no obligation to return
+  it, and FedNow's return request is a request, not a reversal. The rule
+  fires on the outbound payment so it can hold it before release.
+sources:
+  - publisher: Federal Reserve Financial Services
+    title: FedNow Service, Fraud mitigation at a glance
+    url: https://explore.fednow.org/resources/fraud-at-a-glance.pdf
+    note: Mule accounts opened with stolen and synthetic identities; asks participants to keep a mule-prevention strategy and to set value and velocity thresholds.
+  - publisher: The Clearing House
+    title: RTP Request for Return of Funds guidelines (February 19, 2021)
+    url: https://www.theclearinghouse.org/-/media/New/TCH/Documents/Payment-Systems/RTP_Request_for_Returns_v02-19-2021.pdf
+    note: RTP payments are irrevocable once sent and final when accepted; the receiver has no obligation to return funds.
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Incoming transfers wired out almost immediately; large deposits and withdrawals shortly after opening.
+  - publisher: FinCEN
+    title: Advisory on Imposter Scams and Money Mule Schemes Related to COVID-19 (FIN-2020-A003)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2020-a003
+    note: Money mule schemes, in which people are recruited to receive and pass on fraud proceeds.
+false_positives:
+  - A new customer funding the account from their old bank by RTP and paying
+    rent or a car dealer from it the same hour. These usually have a single
+    sender that is the customer's own account; add a payee_self or originator
+    check in the view if they dominate.
+  - Roommates or family splitting a bill through a new P2P account.
+tuning:
+  - param: window
+    effect: How far back instant credits count.
+  - param: max_account_age
+    effect: Only accounts younger than this are checked.
+  - param: min_inflow_cents
+    effect: Smallest instant inflow in the window that matters.
+  - param: pass_through_pct
+    effect: Outbound amount as a percentage of the window's instant inflow.
+params:
+  window: 30m
+  max_account_age: 30d
+  min_inflow_cents: 100000
+  pass_through_pct: 80
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: channel, in: [rtp, fednow, p2p]}
+      - {field: ts, lt: {field: account_opened_ts, plus: $max_account_age}}
+  members:
+    all:
+      - {field: direction, eq: in}
+      - {field: channel, in: [rtp, fednow, p2p]}
+      - {field: txn_type, ne: return}
+  measures:
+    inflow: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: inflow, gte: $min_inflow_cents}
+      - left: {anchor: amount_cents, times: 100}
+        gte: {measure: inflow, times: $pass_through_pct}

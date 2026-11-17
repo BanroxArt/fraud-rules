@@ -1,6 +1,6 @@
 ---
 name: fraud-rules
-description: Choose, tune, compile and run vendor-neutral financial fraud detection rules (synthetic identity, bust-out, money mules, check kiting, structuring, account takeover, payee fraud, elder exploitation, foreign-agent-directed MSB payments) as SQL, Sigma or Python with the fraudrules package from this repo. Use when the user wants detection logic for one of these patterns, wants to turn a FinCEN or FFIEC red flag into a query, needs the SQL for a specific warehouse, or wants to test rules on synthetic data. Engineering checklist only, not legal advice.
+description: Choose, tune, compile and run vendor-neutral financial fraud detection rules (synthetic identity, bust-out, money mules, check kiting, structuring, account takeover, payee fraud, elder exploitation, foreign-agent-directed MSB payments, mules and takeovers on RTP, FedNow and P2P) as SQL, Sigma or Python with the fraudrules package from this repo. Use when the user wants detection logic for one of these patterns, wants to turn a FinCEN or FFIEC red flag into a query, needs the SQL for a specific warehouse, or wants to test rules on synthetic data. Engineering checklist only, not legal advice.
 ---
 
 # Fraud rules
@@ -13,6 +13,8 @@ You are helping someone detect fraud patterns in their own bank or fintech data.
 - Check the point-in-time fields. `counterparty_new`, `device_new`, `geo_new` and `customer_age` must be computed as of each row's timestamp. If they compute them over the whole table, warn that back-test results will be inflated.
 - Amounts in integer cents, time in epoch seconds UTC, vocabulary columns lower case.
 - For the foreign-agent rules (FA-001 to FA-008, FinCEN FIN-2026-Alert009), ask whether they are a principal MSB or a bank serving MSBs; the bank side usually lacks `directing_agent_id` and `in_agent_agreement`, so only FA-004, FA-005, FA-006 and FA-008 will fire.
+
+- For the instant-payment rules (IP-001 to IP-006), ask whether they can tell RTP and FedNow apart from other channels, whether they get carrier SIM-change signals, and whether they know who owns a linked external account and when it was opened. IP-005 and IP-006 need `payee_self`, `counterparty_linked_ts` and `counterparty_opened_ts`; without them those two rules never fire. Do not tell them FedNow or RTP propagate fraud flags between banks or that the GENIUS Act requires cooling-off periods; neither is true.
 
 ## 2. Pick rules
 

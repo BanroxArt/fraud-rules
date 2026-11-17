@@ -1,0 +1,69 @@
+id: IP-003
+name: instant-fan-out
+title: Instant payments to several first-time payees within an hour
+category: instant-payment
+severity: high
+status: experimental
+summary: >-
+  Flags an outbound RTP, FedNow or P2P payment to a first-time payee when the
+  account has paid at least three distinct first-time payees a total of at
+  least $3,000 by instant payment in the trailing hour.
+rationale: |
+  Splitting the proceeds across new recipients is how a mule, or an attacker
+  in a taken-over account, makes recovery harder: each hop is another bank
+  that has to be asked, and on instant rails each hop is final in seconds.
+  MU-003 looks at two days. Here the window is one hour because a takeover
+  cash-out on instant rails is usually done in one session, and a person
+  paying three new people in an hour is rare outside splitting a bill. The
+  same pattern is why FedNow lets participants set value and velocity
+  thresholds by customer segment, and why both networks moved to mandatory
+  fraud reporting.
+sources:
+  - publisher: Federal Reserve Financial Services
+    title: FedNow Service Operating Procedures, version 3.7 (October 2026)
+    url: https://www.frbservices.org/wp-content/uploads/101326-fednow-service-operating-procedures.pdf
+    note: Network transaction limit with a $100,000 default for customer credit transfers, participant negative lists and account activity thresholds.
+  - publisher: FinCEN
+    title: Account Takeover Activity (FIN-2011-A016)
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2011-a016
+    note: Sudden transfers to new recipients among account takeover irregularities.
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Unusually large number and variety of beneficiaries.
+false_positives:
+  - Paying several contractors after a move or a repair, or a group trip
+    settled up at once. The first-time payee condition and the hour window
+    keep this rare.
+tuning:
+  - param: window
+    effect: Counting window.
+  - param: min_payees
+    effect: Distinct first-time payees needed.
+  - param: min_total_cents
+    effect: Total paid to first-time payees in the window.
+params:
+  window: 1h
+  min_payees: 3
+  min_total_cents: 300000
+table: transactions
+aggregate:
+  key: [account_id]
+  window: $window
+  anchor:
+    all:
+      - {field: direction, eq: out}
+      - {field: counterparty_new, eq: 1}
+      - {field: channel, in: [rtp, fednow, p2p]}
+  members:
+    all:
+      - {field: direction, eq: out}
+      - {field: counterparty_new, eq: 1}
+      - {field: channel, in: [rtp, fednow, p2p]}
+  measures:
+    payees: {fn: count_distinct, field: counterparty_id}
+    total: {fn: sum, field: amount_cents}
+  having:
+    all:
+      - {left: payees, gte: $min_payees}
+      - {left: total, gte: $min_total_cents}

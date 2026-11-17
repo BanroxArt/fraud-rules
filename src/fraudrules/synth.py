@@ -49,6 +49,9 @@ MSB_COLUMNS = (
     "corridor_expected",
 )
 
+# Transaction columns only the instant-payment rules read.
+INSTANT_COLUMNS = ("payee_self", "counterparty_linked_ts", "counterparty_opened_ts")
+
 
 @dataclass(frozen=True)
 class Planted:
@@ -126,9 +129,11 @@ class Builder:
         return_code: str | None = None,
         location_id: str | None = None,
         msb: dict[str, int | str | None] | None = None,
+        instant: dict[str, int | None] | None = None,
     ) -> str:
         msb = msb or {}
-        unknown = set(msb) - set(MSB_COLUMNS)
+        instant = instant or {}
+        unknown = (set(msb) - set(MSB_COLUMNS)) | (set(instant) - set(INSTANT_COLUMNS))
         if unknown:
             raise TypeError(f"unknown transaction columns: {sorted(unknown)}")
         return self._add(
@@ -152,6 +157,7 @@ class Builder:
                 "customer_age": acct.age,
                 "credit_limit_cents": acct.limit,
                 **{c: msb.get(c) for c in MSB_COLUMNS},
+                **{c: instant.get(c) for c in INSTANT_COLUMNS},
             },
         )
 
@@ -714,6 +720,72 @@ def fa008(b: Builder, t: int, pos: bool) -> None:
     _agent_wire(b, acct, t, 3187654, None, counterparty_country="dj", corridor_expected=0 if pos else 1)
 
 
+def ip001(b: Builder, t: int, pos: bool) -> None:
+    acct = b.account(b.customer(22), "dda", t - 9 * DAY)
+    b.txn(acct, t, "transfer", "in", "rtp", 240000, b.next_id("ind"), "individual")
+    gap = 12 * MIN if pos else 3 * HOUR
+    b.txn(acct, t + gap, "transfer", "out", "fednow", 225000, b.next_id("ind"), "individual")
+
+
+def ip002(b: Builder, t: int, pos: bool) -> None:
+    acct = b.account(b.customer(26), "dda", t - 15 * DAY)
+    for i in range(6 if pos else 4):
+        ch = ("rtp", "p2p", "fednow")[i % 3]
+        b.txn(acct, t + i * 2 * HOUR, "transfer", "in", ch, 70000 + i * 500, b.next_id("ind"), "individual")
+
+
+def ip003(b: Builder, t: int, pos: bool) -> None:
+    acct = b.account(b.customer(36))
+    step = 15 * MIN if pos else 2 * HOUR
+    for i in range(4):
+        b.txn(acct, t + i * step, "transfer", "out", "rtp", 120000, b.next_id("ind"), "individual")
+
+
+def ip004(b: Builder, t: int, pos: bool) -> None:
+    cid = b.customer(41)
+    acct = b.account(cid)
+    _known_device(b, cid, t)
+    b.event(cid, t, "sim_change", channel="back_office")
+    later = 5 * HOUR if pos else 3 * DAY
+    b.txn(acct, t + later, "transfer", "out", "p2p", 180000, b.next_id("ind"), "individual")
+
+
+def ip005(b: Builder, t: int, pos: bool) -> None:
+    cid = b.customer(67)
+    acct = b.account(cid)
+    linked = t - (20 * HOUR if pos else 10 * DAY)
+    dest = f"self_{cid}_ext"
+    b.event(cid, linked, "payee_added", device_id=b.token("dv"), payee_id=dest)
+    b.txn(
+        acct,
+        t,
+        "transfer",
+        "out",
+        "rtp",
+        1500000,
+        dest,
+        "individual",
+        instant={"payee_self": 1, "counterparty_linked_ts": linked},
+    )
+
+
+def ip006(b: Builder, t: int, pos: bool) -> None:
+    cid = b.customer(58)
+    old = b.account(cid, "dda", t - 11 * 365 * DAY)
+    opened = t - (6 if pos else 45) * DAY
+    b.txn(
+        old,
+        t,
+        "transfer",
+        "out",
+        "wire",
+        4200000,
+        f"self_{cid}_new",
+        "individual",
+        instant={"payee_self": 1, "counterparty_linked_ts": opened + DAY, "counterparty_opened_ts": opened},
+    )
+
+
 SCENARIOS: dict[str, Scenario] = {
     "SI-001": si001,
     "SI-002": si002,
@@ -749,6 +821,12 @@ SCENARIOS: dict[str, Scenario] = {
     "FA-006": fa006,
     "FA-007": fa007,
     "FA-008": fa008,
+    "IP-001": ip001,
+    "IP-002": ip002,
+    "IP-003": ip003,
+    "IP-004": ip004,
+    "IP-005": ip005,
+    "IP-006": ip006,
 }
 
 

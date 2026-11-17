@@ -9,7 +9,7 @@ A rule is one YAML file under `src/fraudrules/rules/<category>/`, named `<id low
 | `id` | yes | `XX-000`. Two letters for the family, three digits. Never reused. |
 | `name` | yes | kebab-case, unique, matches the file name. |
 | `title` | yes | What the rule detects, in words an investigator would use. |
-| `category` | yes | One of `synthetic-identity`, `first-party`, `money-mule`, `check-kiting`, `structuring`, `account-takeover`, `payee-fraud`, `elder-exploitation`, `foreign-agent`. |
+| `category` | yes | One of `synthetic-identity`, `first-party`, `money-mule`, `check-kiting`, `structuring`, `account-takeover`, `payee-fraud`, `elder-exploitation`, `foreign-agent`, `instant-payment`. |
 | `severity` | yes | `low`, `medium`, `high`: how much a hit alone should weigh, not how bad the fraud is. |
 | `status` | yes | `stable`, `test`, `experimental`, with Sigma's meanings. |
 | `summary` | yes | One or two sentences stating exactly when the rule fires, with the default thresholds. |

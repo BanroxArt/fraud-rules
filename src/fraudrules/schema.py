@@ -70,7 +70,7 @@ TRANSACTIONS = (
     _c("account_type", "str", "dda, savings, card or loan."),
     _c("txn_type", "str", "deposit, withdrawal, payment, purchase, cash_advance, transfer, return."),
     _c("direction", "str", "in (credit to the account) or out (debit)."),
-    _c("channel", "str", "ach, wire, rtp, check, cash, atm, card, p2p or internal."),
+    _c("channel", "str", "ach, wire, rtp, fednow, check, cash, atm, card, p2p or internal."),
     _c("amount_cents", "int", "Absolute amount in cents."),
     _c("counterparty_id", "str", "Other party: payee, originator or check maker.", True),
     _c(
@@ -117,6 +117,15 @@ TRANSACTIONS = (
         "1 if counterparty_country is a corridor the customer declared for this account.",
         True,
     ),
+    # Instant-payment columns. Null where the bank does not know them.
+    _c(
+        "payee_self",
+        "int",
+        "1 if the bank verified the payee account is held by this customer (me-to-me).",
+        True,
+    ),
+    _c("counterparty_linked_ts", "int", "When the payee account was added or linked as a destination.", True),
+    _c("counterparty_opened_ts", "int", "Open date of the payee account, when the bank knows it.", True),
 )
 
 EVENTS = (

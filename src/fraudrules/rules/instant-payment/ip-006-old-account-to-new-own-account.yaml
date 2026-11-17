@@ -1,0 +1,58 @@
+id: IP-006
+name: old-account-to-new-own-account
+title: Long-held account sends a large sum to an account in the same name opened days ago
+category: instant-payment
+severity: high
+status: experimental
+summary: >-
+  Flags an outbound transfer of at least $10,000 from an account open at
+  least two years to a destination held by the same customer that was opened
+  less than 14 days earlier.
+rationale: |
+  The new-account cash-out. The victim's old account has history, balances
+  and trust; the new account, opened in the victim's name by an attacker
+  with their identity or by the victim on a scammer's instructions, has none
+  and is where the money is meant to leave from. IP-005 looks at how
+  recently the destination was linked; this rule looks at how old the
+  destination account itself is, which the bank knows for on-us accounts and
+  sometimes from an account-ownership check. A large balance moving from a
+  ten-year-old account to a ten-day-old one in the same name is the shape
+  of both the takeover and the safe-account scam, and it is rare otherwise
+  outside a planned move of banks.
+sources:
+  - publisher: FBI IC3
+    title: '"Phantom Hacker" Scams Target Senior Citizens and Result in Victims Losing their Life Savings (I-091223-PSA, September 29, 2023)'
+    url: https://www.ic3.gov/PSA/2023/PSA230929
+    note: Money moved to a new "alias" account for protection.
+  - publisher: Federal Reserve Financial Services
+    title: FedNow Service, Fraud mitigation at a glance
+    url: https://explore.fednow.org/resources/fraud-at-a-glance.pdf
+    note: Mule accounts opened using stolen and synthetic identities.
+  - publisher: FFIEC
+    title: BSA/AML Examination Manual, Appendix F, Money Laundering and Terrorist Financing Red Flags
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    note: Large deposits and withdrawals shortly after an account is opened.
+false_positives:
+  - A customer who opened a high-yield savings account and moved money into
+    it. On-us savings accounts can be excluded in the view by account_type;
+    external ones deserve the call.
+tuning:
+  - param: min_source_age
+    effect: How long the sending account must have been open.
+  - param: max_dest_age
+    effect: How new the destination account must be.
+  - param: min_amount_cents
+    effect: Smallest transfer that matters.
+params:
+  min_source_age: 730d
+  max_dest_age: 14d
+  min_amount_cents: 1000000
+table: transactions
+filter:
+  all:
+    - {field: direction, eq: out}
+    - {field: channel, in: [rtp, fednow, p2p, wire, ach, internal]}
+    - {field: payee_self, eq: 1}
+    - {field: amount_cents, gte: $min_amount_cents}
+    - {field: ts, gte: {field: account_opened_ts, plus: $min_source_age}}
+    - {field: ts, lt: {field: counterparty_opened_ts, plus: $max_dest_age}}

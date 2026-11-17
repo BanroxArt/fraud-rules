@@ -2,11 +2,11 @@
 
 Detection rules for financial fraud, written once in a small YAML format and compiled to three targets that give the same answer: portable SQL (tested on DuckDB, transpiled to Postgres, Snowflake and BigQuery), Sigma for the log-shaped rules, and a plain Python evaluator that defines the semantics.
 
-34 rules across synthetic identity, first-party bust-out, money mules, check kiting, structuring, account takeover, payee fraud, elder financial exploitation and payments directed by the foreign agents of US money transmitters. Every rule cites the regulation, FinCEN advisory, FFIEC guidance or Nacha rule it is built from, and lists its known false positives and the parameters to tune.
+40 rules across synthetic identity, first-party bust-out, money mules, check kiting, structuring, account takeover, payee fraud, elder financial exploitation, payments directed by the foreign agents of US money transmitters, and mule and takeover patterns on instant payment rails (RTP, FedNow, P2P). Every rule cites the regulation, FinCEN advisory, FFIEC guidance or Nacha rule it is built from, and lists its known false positives and the parameters to tune.
 
 Built and maintained by Art Akopian, CEO of [Banrox](https://banrox.com). Banrox builds consumer credit and fraud-prevention software and publishes the general-purpose pieces.
 
-> **Engineering checklist, not legal advice.** The rules flag activity for a human to review. They do not decide whether activity is suspicious, whether a SAR or CTR is due, or whether an institution meets its BSA, Nacha or Regulation CC obligations. Thresholds are starting points; set them from your own data and your own risk assessment.
+> **Engineering checklist, not legal advice.** The rules flag activity for a human to review. They do not decide whether activity is suspicious, whether a SAR or CTR is due, or whether an institution meets its BSA, Nacha or Regulation CC obligations. Thresholds are starting points; set them from your own data and your own risk assessment. Every rule has been tested on synthetic data only.
 
 ## Why another rule format
 
@@ -41,6 +41,12 @@ Here a rule is data. One file compiles to every target, and the test suite check
 | [FP-001](src/fraudrules/rules/first-party/fp-001-sleeper-line-maxout.yaml) | Seasoned card account draws most of its credit line within a week | aggregate | SQL, Python | FFIEC, Federal Reserve |
 | [FP-002](src/fraudrules/rules/first-party/fp-002-payment-spend-return.yaml) | Card payment spent before it clears, then returned unpaid | sequence | SQL, Python | Federal Reserve, Nacha |
 | [FP-003](src/fraudrules/rules/first-party/fp-003-payment-stacking.yaml) | Several card payments in a few days adding up to more than the limit | aggregate | SQL, Python | Federal Reserve, Nacha |
+| [IP-001](src/fraudrules/rules/instant-payment/ip-001-instant-in-instant-out.yaml) | New account sends an instant credit straight back out within minutes | aggregate | SQL, Python | Federal Reserve, TCH, FFIEC, FinCEN |
+| [IP-002](src/fraudrules/rules/instant-payment/ip-002-instant-fan-in.yaml) | Young account receives instant credits from many senders in a day | aggregate | SQL, Python | Federal Reserve, FFIEC, FinCEN |
+| [IP-003](src/fraudrules/rules/instant-payment/ip-003-instant-fan-out.yaml) | Instant payments to several first-time payees within an hour | aggregate | SQL, Python | Federal Reserve, FinCEN, FFIEC |
+| [IP-004](src/fraudrules/rules/instant-payment/ip-004-new-payee-after-device-or-sim-change.yaml) | First instant payment to a new payee within a day of a new device or SIM change | sequence | SQL, Python | FBI IC3, FFIEC, FinCEN |
+| [IP-005](src/fraudrules/rules/instant-payment/ip-005-me-to-me-newly-linked.yaml) | Large transfer to the customer's own account at another bank, linked days ago | filter | SQL, Python | FBI IC3, Federal Reserve, FinCEN |
+| [IP-006](src/fraudrules/rules/instant-payment/ip-006-old-account-to-new-own-account.yaml) | Long-held account sends a large sum to an account in the same name opened days ago | filter | SQL, Python | FBI IC3, Federal Reserve, FFIEC |
 | [MU-001](src/fraudrules/rules/money-mule/mu-001-rapid-pass-through.yaml) | New account sends out most of what it received in the last three days | aggregate | SQL, Python | FFIEC, FinCEN, Nacha |
 | [MU-002](src/fraudrules/rules/money-mule/mu-002-fan-in-new-account.yaml) | New personal account credited by many unrelated individuals | aggregate | SQL, Python | FFIEC, FinCEN, Nacha |
 | [MU-003](src/fraudrules/rules/money-mule/mu-003-fan-out-new-payees.yaml) | Funds sent to several first-time payees within two days | aggregate | SQL, Python | FFIEC, FinCEN |
@@ -152,6 +158,27 @@ FA-001 to FA-008 turn the alert's nine red flags for principal MSBs and five for
 
 They need eleven extra nullable columns on `transactions` and one event type, listed in [docs/data-model.md](docs/data-model.md). A bank that only has its MSB customer's wires gets FA-004, FA-005, FA-006 and FA-008; a principal MSB that records which agent instructed each payment gets all eight. All eight are `experimental`: they encode the alert's wording, and nobody has tuned them on real MSB traffic yet.
 
+## Instant payments (RTP, FedNow, P2P)
+
+IP-001 to IP-006 are the mule and takeover patterns from the money-mule and account-takeover families, re-cut for rails that settle in seconds. The difference is the clock. On ACH a bank has hours or days between a credit and the money leaving; on RTP and FedNow the receiving bank's only chance is between the credit landing and the next push out, and after that the sender's bank can ask for the money back but cannot make the other bank return it. TCH's [Request for Return guidelines](https://www.theclearinghouse.org/-/media/New/TCH/Documents/Payment-Systems/RTP_Request_for_Returns_v02-19-2021.pdf) say an RTP payment is irrevocable once sent and the receiver has no obligation to return funds; FedNow has a return request message (camt.056) and a payment return (pacs.004), which is the same arrangement.
+
+| pattern | rule |
+|---|---|
+| New account receives and pushes out within minutes | IP-001 |
+| Many senders into one young account in a day (fan-in) | IP-002 |
+| Several first-time payees in an hour (fan-out) | IP-003 |
+| First-time payee right after a new-device login or a SIM change | IP-004 |
+| Me-to-me transfer to a destination linked in the last three days | IP-005 |
+| Large transfer from a long-held account to a same-name account opened days ago | IP-006 |
+
+They use `fednow` as a channel value, a `sim_change` event type, and three nullable transaction columns (`payee_self`, `counterparty_linked_ts`, `counterparty_opened_ts`), all in [docs/data-model.md](docs/data-model.md). IP-005 and IP-006 stay quiet where the bank does not know who owns the destination account or when it was opened. All six are `experimental`: tested on synthetic data only, never tuned on real payment traffic.
+
+What the networks do and do not provide, checked against primary sources in November 2026:
+
+- FedNow has a $10 million network transaction limit and a $100,000 default that each participant can raise up to that limit ([FedNow Operating Procedures v3.7, October 2026](https://www.frbservices.org/wp-content/uploads/101326-fednow-service-operating-procedures.pdf)). It also gives participants a negative list and account activity thresholds. The negative list belongs to one participant and is checked on that participant's payments; it is not shared with other banks.
+- Neither network flags an account at every bank automatically. Fraud reports go from one bank to the network and to the other bank in the payment, and what happens next is that bank's decision. These rules run inside one institution for that reason.
+- Velocity limits and cooling-off periods are not a legal requirement under the GENIUS Act (Pub. L. 119-27). The windows here are detection parameters you tune, not compliance thresholds.
+
 ## Results on synthetic data
 
 `make bench` on 2,000 synthetic customers over 90 days (108k transactions, 132k events, 836 applications) with planted cases for every rule: every planted positive caught, no near miss flagged, all rules in one DuckDB query in about 0.1 s and in the Python evaluator in about 5 s. [docs/benchmarks.md](docs/benchmarks.md) has the details. The background population is deliberately plain, so the zero false-positive count there says nothing about precision on real data. It shows the rules do what they claim on the cases they claim.
@@ -165,7 +192,7 @@ They need eleven extra nullable columns on `transactions` and one event type, li
 
 ## Sources
 
-Every rule file lists its own. The pack draws on: 31 CFR 1010.311, 1010.313 and 1010.314 and 31 U.S.C. 5324 (currency reporting and structuring); 12 CFR 229.13 (Regulation CC exception holds); FinCEN advisories FIN-2011-A016 (account takeover), FIN-2016-A003 and FIN-2019-A005 (email compromise), FIN-2020-A003 (money mules), FIN-2022-A002 (elder financial exploitation) and alerts FIN-2023-Alert003 (mail theft-related check fraud) and FIN-2026-Alert009 (foreign-agent-directed transactions); the FFIEC BSA/AML Examination Manual, Appendix F; the FFIEC guidance Authentication and Access to Financial Institution Services and Systems (2021); the Interagency Statement on Elder Financial Exploitation (2024); Nacha's 2026 fraud monitoring rules; and the Federal Reserve's Synthetic Identity Fraud Mitigation Toolkit.
+Every rule file lists its own. The pack draws on: 31 CFR 1010.311, 1010.313 and 1010.314 and 31 U.S.C. 5324 (currency reporting and structuring); 12 CFR 229.13 (Regulation CC exception holds); FinCEN advisories FIN-2011-A016 (account takeover), FIN-2016-A003 and FIN-2019-A005 (email compromise), FIN-2020-A003 (money mules), FIN-2022-A002 (elder financial exploitation) and alerts FIN-2023-Alert003 (mail theft-related check fraud) and FIN-2026-Alert009 (foreign-agent-directed transactions); the FFIEC BSA/AML Examination Manual, Appendix F; the FFIEC guidance Authentication and Access to Financial Institution Services and Systems (2021); the Interagency Statement on Elder Financial Exploitation (2024); Nacha's 2026 fraud monitoring rules; the Federal Reserve's Synthetic Identity Fraud Mitigation Toolkit; the FedNow Service Operating Procedures and fraud guide; The Clearing House's RTP Request for Return guidelines; and FBI IC3 public service announcements I-020822-PSA (SIM swapping) and I-091223-PSA ("Phantom Hacker" scams).
 
 ## Development
 

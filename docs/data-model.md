@@ -46,7 +46,7 @@ For cash debits with no counterparty, set `counterparty_new` to 1 unless you rec
 | `account_type` | str | no | dda, savings, card or loan. |
 | `txn_type` | str | no | deposit, withdrawal, payment, purchase, cash_advance, transfer, return. |
 | `direction` | str | no | in (credit to the account) or out (debit). |
-| `channel` | str | no | ach, wire, rtp, check, cash, atm, card, p2p or internal. |
+| `channel` | str | no | ach, wire, rtp, fednow, check, cash, atm, card, p2p or internal. |
 | `amount_cents` | int | no | Absolute amount in cents. |
 | `counterparty_id` | str | yes | Other party: payee, originator or check maker. |
 | `counterparty_type` | str | yes | individual, business, crypto_exchange, gift_card_merchant, money_transmitter. |
@@ -67,8 +67,13 @@ For cash debits with no counterparty, set `counterparty_new` to 1 unless you rec
 | `supporting_docs` | int | yes | 1 if an invoice, contract or order was on file before ts. |
 | `round_amount` | int | yes | 1 if amount_cents is within $10 of a multiple of $1,000. |
 | `corridor_expected` | int | yes | 1 if counterparty_country is a corridor the customer declared for this account. |
+| `payee_self` | int | yes | 1 if the bank verified the payee account is held by this customer (me-to-me). |
+| `counterparty_linked_ts` | int | yes | When the payee account was added or linked as a destination. |
+| `counterparty_opened_ts` | int | yes | Open date of the payee account, when the bank knows it. |
 
-The last eleven columns feed the foreign-agent rules (FA-001 to FA-008) and can stay null everywhere else. A principal MSB fills `directing_agent_id`, `in_agent_agreement`, `purpose` and `supporting_docs` from its agent instructions; a bank serving MSBs usually has only `customer_segment`, the payee fields and `corridor_expected` from the customer's onboarding profile, and the rules that need the rest simply never fire there. `supporting_docs`, `counterparty_web_presence` and `corridor_expected` are point-in-time fields like the ones above. `round_amount` is plain arithmetic, `CASE WHEN MOD(amount_cents + 1000, 100000) <= 2000 THEN 1 ELSE 0 END`, kept in the view so no engine has to agree on modulo of a negative number.
+The eleven columns from `customer_segment` to `corridor_expected` feed the foreign-agent rules (FA-001 to FA-008) and can stay null everywhere else. A principal MSB fills `directing_agent_id`, `in_agent_agreement`, `purpose` and `supporting_docs` from its agent instructions; a bank serving MSBs usually has only `customer_segment`, the payee fields and `corridor_expected` from the customer's onboarding profile, and the rules that need the rest simply never fire there. `supporting_docs`, `counterparty_web_presence` and `corridor_expected` are point-in-time fields like the ones above. `round_amount` is plain arithmetic, `CASE WHEN MOD(amount_cents + 1000, 100000) <= 2000 THEN 1 ELSE 0 END`, kept in the view so no engine has to agree on modulo of a negative number.
+
+The last three columns feed the instant-payment rules (IP-005 and IP-006). `payee_self` should be 1 only when ownership was actually checked: the payee account is on-us under the same customer, or an account-ownership check at link time matched the customer. A name the customer typed in is not enough, because that is exactly what a scammer tells a victim to type. `counterparty_linked_ts` is the time the destination was first added, from the same source as the `payee_added` event. `counterparty_opened_ts` is usually known only for on-us accounts; leave it null otherwise and IP-006 stays quiet.
 
 ## events
 
@@ -91,9 +96,9 @@ The last eleven columns feed the foreign-agent rules (FA-001 to FA-008) and can 
 ## Vocabularies
 
 - `transactions.txn_type`: deposit, withdrawal, payment, purchase, cash_advance, transfer, return. A card payment is `payment` with direction `in` on the card account. A returned item is `return` with its `return_code` (Nacha R codes for ACH).
-- `transactions.channel`: ach, wire, rtp, check, cash, atm, card, p2p, internal.
+- `transactions.channel`: ach, wire, rtp, fednow, check, cash, atm, card, p2p, internal. `rtp` is The Clearing House RTP network and `fednow` the Federal Reserve FedNow Service; both settle in seconds, and getting money back takes a return request the receiving bank may decline. `p2p` is a P2P app such as Zelle, whatever rail sits underneath.
 - `transactions.counterparty_type`: individual, business, crypto_exchange, gift_card_merchant, money_transmitter.
-- `events.event_type`: login, mfa_challenge, password_reset, mfa_change, email_change, phone_change, address_change, device_enrolled, payee_added, payee_changed, agent_info_request. An `agent_info_request` is one request from a principal MSB (or a bank) to a foreign agent for documents, due-diligence evidence or licensing and AML information; `customer_id` is the agent, `outcome` is success when answered, failure when the deadline passed with no answer, denied when refused.
+- `events.event_type`: login, mfa_challenge, password_reset, mfa_change, email_change, phone_change, address_change, device_enrolled, payee_added, payee_changed, sim_change, agent_info_request. A `sim_change` is a carrier signal that the SIM or eSIM behind the customer's phone number changed or the number was ported, from a carrier or phone-intelligence lookup; `phone_change` is the customer changing the number on file. An `agent_info_request` is one request from a principal MSB (or a bank) to a foreign agent for documents, due-diligence evidence or licensing and AML information; `customer_id` is the agent, `outcome` is success when answered, failure when the deadline passed with no answer, denied when refused.
 - `events.outcome`: success, failure, denied. An MFA prompt that timed out is `failure`.
 - `events.channel`: web, mobile, ivr, call_center, branch, back_office.
 - `transactions.customer_segment`: retail, business, msb.

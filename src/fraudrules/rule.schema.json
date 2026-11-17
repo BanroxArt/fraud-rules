@@ -15,7 +15,7 @@
     "id": {"type": "string", "pattern": "^[A-Z]{2}-[0-9]{3}$"},
     "name": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 64},
     "title": {"type": "string", "minLength": 10, "maxLength": 120},
-    "category": {"enum": ["synthetic-identity", "first-party", "money-mule", "check-kiting", "structuring", "account-takeover", "payee-fraud", "elder-exploitation", "foreign-agent"]},
+    "category": {"enum": ["synthetic-identity", "first-party", "money-mule", "check-kiting", "structuring", "account-takeover", "payee-fraud", "elder-exploitation", "foreign-agent", "instant-payment"]},
     "severity": {"enum": ["low", "medium", "high"]},
     "status": {"enum": ["stable", "test", "experimental"]},
     "summary": {"type": "string", "minLength": 20},
